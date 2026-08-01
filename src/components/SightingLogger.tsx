@@ -248,7 +248,13 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       return;
     }
 
-    // 2. Check if user flagged as downloaded web image
+    // 2. Check if no image is attached/detected
+    if (!photoUrl || !photoUrl.trim() || !previewImage) {
+      setLoggerError('No image detected. Please upload or select a bird photo before logging your sighting.');
+      return;
+    }
+
+    // 3. Check if user flagged as downloaded web image
     if (isSimulatingWebDownload) {
       triggerUserRestriction(
         'Terms of Service Violation: Web Downloaded Image Uploaded. Uploading images downloaded from the internet is strictly prohibited. All bird sightings must be authentic field photographs captured with your camera/phone metadata (location & phone type).'
@@ -264,7 +270,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       return;
     }
 
-    // 3. Verify Image Authenticity via Backend API
+    // 4. Verify Image Authenticity via Backend API
     setIsVerifyingPhoto(true);
     try {
       const response = await fetch('/api/verify-image-authenticity', {
@@ -280,8 +286,19 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       const json = await response.json();
       setIsVerifyingPhoto(false);
 
-      if (json.success && json.data) {
+      if (!json.success || json.noImageDetected) {
+        setLoggerError(json.error || 'No valid image detected. Please attach or upload a bird photo to continue.');
+        return;
+      }
+
+      if (json.data) {
         const authData = json.data;
+
+        // If no image detected from analysis, prompt user to add an image (do NOT suspend)
+        if (authData.authenticityStatus === 'no_image_detected') {
+          setLoggerError(authData.failureReason || 'No image detected. Please upload or select a clear bird photo.');
+          return;
+        }
 
         // If Web Download Detected -> Restrict Account for 3 Days!
         if (!authData.isGenuinePhoto || authData.authenticityStatus === 'web_download_detected') {

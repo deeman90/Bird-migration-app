@@ -217,7 +217,11 @@ app.post('/api/verify-image-authenticity', async (req, res) => {
     const { photoUrl, base64Image, clientExif } = req.body;
 
     if (!photoUrl && !base64Image) {
-      return res.status(400).json({ error: 'Please provide either photoUrl or base64Image.' });
+      return res.json({
+        success: false,
+        noImageDetected: true,
+        error: 'No image detected. Please upload or select a bird photo before submitting.',
+      });
     }
 
     // Check 1: Known web stock URLs & sample presets
@@ -260,15 +264,11 @@ app.post('/api/verify-image-authenticity', async (req, res) => {
     try {
       imagePart = await getImagePart(photoUrl, base64Image);
     } catch (fetchErr: any) {
-      // If image fetching failed, flag as unverified web photo rather than crashing server
+      // If image fetching failed, flag as no image detected so user can re-upload photo
       return res.json({
-        success: true,
-        data: {
-          isGenuinePhoto: false,
-          authenticityStatus: 'web_download_detected',
-          failureReason: 'Downloaded web image detected. Could not verify original phone camera metadata.',
-          confidenceScore: 90,
-        },
+        success: false,
+        noImageDetected: true,
+        error: 'No valid image detected. Please upload or attach a clear bird photo file.',
       });
     }
 
@@ -340,14 +340,10 @@ Rules:
     return res.json({ success: true, data: resultJson });
   } catch (error: any) {
     console.error('Error in /api/verify-image-authenticity:', error);
-    return res.status(200).json({
-      success: true,
-      data: {
-        isGenuinePhoto: false,
-        authenticityStatus: 'web_download_detected',
-        failureReason: error?.message || 'Verification unconfirmed.',
-        confidenceScore: 80,
-      },
+    return res.json({
+      success: false,
+      noImageDetected: true,
+      error: error?.message || 'No valid image detected. Please upload or attach a clear bird photo.',
     });
   }
 });

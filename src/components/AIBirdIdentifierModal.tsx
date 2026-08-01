@@ -77,11 +77,15 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
   };
 
   const handleRunAiIdentification = async () => {
+    const imageToAnalyze = customPhotoInput.trim() || photoUrl;
+    if (!imageToAnalyze || !imageToAnalyze.trim()) {
+      setErrorMsg('No image detected. Please upload a bird photo or select an image first.');
+      return;
+    }
+
     setIsScanning(true);
     setErrorMsg(null);
     setAiResult(null);
-
-    const imageToAnalyze = customPhotoInput.trim() || photoUrl;
 
     try {
       const appSpeciesList = speciesList.map((s) => ({
