@@ -1,0 +1,530 @@
+import { BirdSpecies, Hotspot, LeaderboardEntry, MigrationRoute, RewardMilestone, Sighting, User } from '../types';
+
+export const INITIAL_USER_FREE: User = {
+  id: 'usr_001',
+  name: 'Alex Rivera',
+  email: 'alex.birdwatcher@flyway.org',
+  phone: '+1 (555) 234-5678',
+  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300',
+  region: 'North America',
+  tier: 'free',
+  sightingsCount: 12,
+  rareSpeciesCount: 3,
+  points: 1250,
+  badges: ['Early Spotter', 'Coordinates Master'],
+  bio: 'Avid birder based in the Pacific Flyway. Passionate about coastal waders and seasonal raptor migrations.',
+  joinedDate: 'March 2025',
+  address: {
+    street: '742 Evergreen Terrace',
+    city: 'Seattle',
+    state: 'WA',
+    postalCode: '98101',
+    country: 'United States',
+  },
+  favoriteBird: 'Peregrine Falcon',
+  cameraGear: 'Nikon D850 with 200-500mm f/5.6',
+  socialWebsite: 'https://birdwatchers.example.org',
+  socialTwitter: '@alex_flyway',
+  socialInstagram: '@alex_birder',
+  emailNotifications: {
+    migrationAlerts: true,
+    communityActivity: true,
+    weeklyDigest: false,
+  },
+  privacyMode: 'public',
+};
+
+export const INITIAL_USER_PAID: User = {
+  id: 'usr_002',
+  name: 'Dr. Sarah Lin',
+  email: 'sarah.lin@ornithology.org',
+  phone: '+1 (555) 876-5432',
+  avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
+  region: 'North America',
+  tier: 'paid',
+  sightingsCount: 84,
+  rareSpeciesCount: 19,
+  points: 8900,
+  badges: ['VIP Flyway Sentinel', 'Golden Eagle Observer', 'Hotspot Pioneer', 'Coordinates Master'],
+  bio: 'Field ornithologist and migration researcher tracking trans-continental flyways.',
+  joinedDate: 'January 2024',
+  address: {
+    street: '1200 San Antonio Rd',
+    city: 'Palo Alto',
+    state: 'CA',
+    postalCode: '94303',
+    country: 'United States',
+  },
+  favoriteBird: 'Arctic Tern',
+  cameraGear: 'Sony A1 with 600mm f/4 GM OSS',
+  socialWebsite: 'https://sarahlin-ornithology.org',
+  socialTwitter: '@drsarahlin',
+  socialInstagram: '@sarahlin_wildlife',
+  emailNotifications: {
+    migrationAlerts: true,
+    communityActivity: true,
+    weeklyDigest: true,
+  },
+  privacyMode: 'public',
+};
+
+export const BIRD_SPECIES_LIST: BirdSpecies[] = [
+  {
+    id: 'sp_arctic_tern',
+    commonName: 'Arctic Tern',
+    scientificName: 'Sterna paradisaea',
+    category: 'Seabird',
+    conservationStatus: 'Least Concern',
+    image: 'https://images.unsplash.com/photo-1551085254-e96b210df58a?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'Global Atlantic & Pacific Flyways',
+    description: 'Holds the record for the longest known migration of any animal, travelling up to 90,000 km round-trip every year between Greenland/Arctic and Antarctica.',
+    averageFlockSize: '20 - 150 birds',
+    wingspanCm: 85
+  },
+  {
+    id: 'sp_osprey',
+    commonName: 'Osprey (Fish Hawk)',
+    scientificName: 'Pandion haliaetus',
+    category: 'Raptor',
+    conservationStatus: 'Least Concern',
+    image: 'https://images.unsplash.com/photo-1606567595334-d39972c85dbe?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'Americas & Euro-African Flyway',
+    description: 'A spectacular fish-eating raptor that migrates over long distances across lakes, estuaries, and coastlines.',
+    averageFlockSize: 'Solitary or pairs',
+    wingspanCm: 180
+  },
+  {
+    id: 'sp_godwit',
+    commonName: 'Bar-tailed Godwit',
+    scientificName: 'Limosa lapponica',
+    category: 'Shorebird',
+    conservationStatus: 'Near Threatened',
+    image: 'https://images.unsplash.com/photo-1618172193763-c511deb635ca?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'East Asian-Australasian Flyway',
+    description: 'Famous for non-stop flights over 11,000 km across the open Pacific Ocean without resting or feeding.',
+    averageFlockSize: '50 - 500 birds',
+    wingspanCm: 75
+  },
+  {
+    id: 'sp_stork',
+    commonName: 'White Stork',
+    scientificName: 'Ciconia ciconia',
+    category: 'Wader',
+    conservationStatus: 'Least Concern',
+    image: 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'Euro-African Flyway',
+    description: 'Migrates in thermal updrafts over the Strait of Gibraltar and the Bosporus into Sub-Saharan Africa.',
+    averageFlockSize: '100 - 1,000+ thermal thermalling flocks',
+    wingspanCm: 215
+  },
+  {
+    id: 'sp_sandhill_crane',
+    commonName: 'Sandhill Crane',
+    scientificName: 'Antigone canadensis',
+    category: 'Crane',
+    conservationStatus: 'Least Concern',
+    image: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'Central & Mississippi Flyways',
+    description: 'Gather in massive numbers along Nebraska’s Platte River during spring migration before heading to Canada & Alaska.',
+    averageFlockSize: '500 - 10,000 birds',
+    wingspanCm: 200
+  },
+  {
+    id: 'sp_hummingbird',
+    commonName: 'Ruby-throated Hummingbird',
+    scientificName: 'Archilochus colubris',
+    category: 'Songbird / Hummingbird',
+    conservationStatus: 'Least Concern',
+    image: 'https://images.unsplash.com/photo-1520808663317-647b476a81b9?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'Atlantic & Mississippi Flyway',
+    description: 'Smallest migratory marvel that flies non-stop 800 km across the Gulf of Mexico in 18 to 22 hours.',
+    averageFlockSize: 'Solitary migratory fliers',
+    wingspanCm: 11
+  }
+];
+
+export const MIGRATION_ROUTES: MigrationRoute[] = [
+  {
+    id: 'rt_arctic_tern',
+    speciesName: 'Arctic Tern',
+    speciesId: 'sp_arctic_tern',
+    color: '#06b6d4',
+    flywayName: 'Trans-Atlantic Arctic-Antarctic Pole Loop',
+    totalDistanceKm: 44000,
+    activeMonths: ['May', 'June', 'July', 'August', 'September', 'October'],
+    status: 'Peak Migration',
+    pathPoints: [
+      { lat: 64.14, lng: -21.94, name: 'Breeding Grounds (Iceland)', season: 'Summer Nesting' },
+      { lat: 43.65, lng: -70.25, name: 'Stopover (Gulf of Maine)', isStopover: true },
+      { lat: 14.69, lng: -17.44, name: 'Western Africa Transit', isStopover: true },
+      { lat: -33.92, lng: 18.42, name: 'Cape of Good Hope Rest Point', isStopover: true },
+      { lat: -71.20, lng: -11.50, name: 'Wintering (Weddell Sea, Antarctica)', season: 'Antarctic Wintering' }
+    ]
+  },
+  {
+    id: 'rt_stork',
+    speciesName: 'White Stork',
+    speciesId: 'sp_stork',
+    color: '#10b981',
+    flywayName: 'Euro-African Flyway (Gibraltar & Bosporus)',
+    totalDistanceKm: 12000,
+    activeMonths: ['August', 'September', 'October', 'March', 'April'],
+    status: 'Peak Migration',
+    pathPoints: [
+      { lat: 52.52, lng: 13.40, name: 'Breeding Grounds (Central Europe)', season: 'Nesting' },
+      { lat: 36.01, lng: -5.60, name: 'Gibraltar Strait Chokepoint', isStopover: true },
+      { lat: 21.00, lng: -10.50, name: 'Sahara Crossing corridor', isStopover: true },
+      { lat: 9.03, lng: 38.74, name: 'East African Rift Stopover', isStopover: true },
+      { lat: -25.74, lng: 28.18, name: 'Winter Grounds (South Africa)', season: 'Wintering' }
+    ]
+  },
+  {
+    id: 'rt_sandhill_crane',
+    speciesName: 'Sandhill Crane',
+    speciesId: 'sp_sandhill_crane',
+    color: '#f59e0b',
+    flywayName: 'Central Flyway Corridor',
+    totalDistanceKm: 6500,
+    activeMonths: ['March', 'April', 'September', 'October', 'November'],
+    status: 'Approaching Grounds',
+    pathPoints: [
+      { lat: 64.83, lng: -147.77, name: 'Nesting Grounds (Alaska)', season: 'Nesting' },
+      { lat: 40.71, lng: -98.34, name: 'Platte River Valley (Nebraska Hotspot)', isStopover: true },
+      { lat: 33.82, lng: -106.88, name: 'Bosque del Apache Refuge', isStopover: true },
+      { lat: 25.68, lng: -100.31, name: 'Wintering Grounds (Northern Mexico)', season: 'Wintering' }
+    ]
+  },
+  {
+    id: 'rt_godwit',
+    speciesName: 'Bar-tailed Godwit',
+    speciesId: 'sp_godwit',
+    color: '#ec4899',
+    flywayName: 'East Asian-Australasian Pacific Flyway',
+    totalDistanceKm: 11000,
+    activeMonths: ['September', 'October', 'April', 'May'],
+    status: 'Peak Migration',
+    pathPoints: [
+      { lat: 64.50, lng: -165.40, name: 'Alaska Yukon Staging Ground', season: 'Breeding' },
+      { lat: 31.23, lng: 121.47, name: 'Yellow Sea Mudflats, China', isStopover: true },
+      { lat: -36.84, lng: 174.76, name: 'Miranda Shorebird Center (New Zealand)', season: 'Wintering' }
+    ]
+  }
+];
+
+export const HOTSPOTS: Hotspot[] = [
+  {
+    id: 'hs_gibraltar',
+    name: 'Strait of Gibraltar Migration Chokepoint',
+    locationName: 'Tarifa, Spain & Tangier, Morocco',
+    region: 'Europe / North Africa',
+    latitude: 36.01,
+    longitude: -5.60,
+    trafficRating: 'extreme',
+    rareSpeciesPresent: ['Short-toed Snake Eagle', 'Black Stork', 'Egyptian Vulture', 'Booted Eagle'],
+    isExclusive: true,
+    description: 'Over 500,000 birds of prey and storks funnel through this 14km sea gap every autumn and spring due to thermal winds.',
+    photoUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=600',
+    currentDensity: '12,400 birds/hr radar density',
+    peakMonth: 'September - October',
+    activeBirdCount: 48500,
+    flywayType: 'Euro-African Flyway'
+  },
+  {
+    id: 'hs_point_pelee',
+    name: 'Point Pelee National Park',
+    locationName: 'Ontario, Canada',
+    region: 'North America',
+    latitude: 41.96,
+    longitude: -82.51,
+    trafficRating: 'extreme',
+    rareSpeciesPresent: ['Prothonotary Warbler', 'Cerulean Warbler', 'Olive-sided Flycatcher'],
+    isExclusive: true,
+    description: 'A famous peninsula jutting into Lake Erie where millions of migratory songbirds rest before crossing the open water.',
+    photoUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&q=80&w=600',
+    currentDensity: '8,900 birds/hr radar density',
+    peakMonth: 'May (Spring Peak)',
+    activeBirdCount: 32100,
+    flywayType: 'Mississippi Flyway'
+  },
+  {
+    id: 'hs_bosque',
+    name: 'Bosque del Apache National Wildlife Refuge',
+    locationName: 'Socorro, New Mexico, USA',
+    region: 'North America',
+    latitude: 33.82,
+    longitude: -106.88,
+    trafficRating: 'high',
+    rareSpeciesPresent: ['Whooping Crane', 'Ross’s Goose', 'Sandhill Crane'],
+    isExclusive: false,
+    description: 'Wintering haven for tens of thousands of cranes and snow geese along the Rio Grande wetland corridor.',
+    photoUrl: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&q=80&w=600',
+    currentDensity: '5,200 birds/hr radar density',
+    peakMonth: 'November - February',
+    activeBirdCount: 24000,
+    flywayType: 'Central Flyway'
+  },
+  {
+    id: 'hs_eilat',
+    name: 'Eilat International Birding Center',
+    locationName: 'Eilat, Israel',
+    region: 'Middle East',
+    latitude: 29.55,
+    longitude: 34.95,
+    trafficRating: 'extreme',
+    rareSpeciesPresent: ['Steppe Eagle', 'Lesser Kestrel', 'Levant Sparrowhawk', 'White Pelican'],
+    isExclusive: true,
+    description: 'The sole land bridge connecting Eurasia and Africa. Billions of migratory birds stop here to refuel after crossing the Sahara and Red Sea deserts.',
+    photoUrl: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&q=80&w=600',
+    currentDensity: '18,200 birds/hr radar density',
+    peakMonth: 'March - May',
+    activeBirdCount: 61000,
+    flywayType: 'Eurasian-East African Flyway'
+  },
+  {
+    id: 'hs_cape_may',
+    name: 'Cape May Point Observatory',
+    locationName: 'New Jersey, USA',
+    region: 'North America',
+    latitude: 38.93,
+    longitude: -74.96,
+    trafficRating: 'high',
+    rareSpeciesPresent: ['Peregrine Falcon', 'Merlin', 'Swainson’s Hawk'],
+    isExclusive: false,
+    description: 'Raptor capital of North America. Autumn winds force thousands of hawks, falcons, and owls to gather at the southern tip of New Jersey.',
+    photoUrl: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&q=80&w=600',
+    currentDensity: '4,100 birds/hr radar density',
+    peakMonth: 'September - November',
+    activeBirdCount: 15300,
+    flywayType: 'Atlantic Flyway'
+  },
+  {
+    id: 'hs_poyang',
+    name: 'Poyang Lake National Nature Reserve',
+    locationName: 'Jiangxi, China',
+    region: 'Asia-Pacific',
+    latitude: 29.11,
+    longitude: 116.02,
+    trafficRating: 'extreme',
+    rareSpeciesPresent: ['Siberian Crane', 'Oriental Stork', 'White-naped Crane', 'Swan Goose'],
+    isExclusive: true,
+    description: 'Winter habitat for 98% of the world’s endangered Siberian Cranes along the East Asian flyway.',
+    photoUrl: 'https://images.unsplash.com/photo-1511497584788-876761c11969?auto=format&fit=crop&q=80&w=600',
+    currentDensity: '14,000 birds/hr radar density',
+    peakMonth: 'December - February',
+    activeBirdCount: 41200,
+    flywayType: 'East Asian-Australasian Flyway'
+  }
+];
+
+export const INITIAL_SIGHTINGS: Sighting[] = [
+  {
+    id: 'sg_101',
+    userId: 'usr_002',
+    userName: 'Dr. Sarah Lin',
+    userAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
+    userTier: 'paid',
+    speciesId: 'sp_arctic_tern',
+    speciesName: 'Arctic Tern',
+    scientificName: 'Sterna paradisaea',
+    latitude: 43.65,
+    longitude: -70.25,
+    locationName: 'Portland Head Light, Maine, USA',
+    region: 'North America',
+    timestamp: '2 hours ago',
+    photoUrl: 'https://images.unsplash.com/photo-1551085254-e96b210df58a?auto=format&fit=crop&q=80&w=800',
+    flockCount: 42,
+    behavior: 'flying',
+    notes: 'Flock resting on coastal rocks before ocean crossing. High flight energy, feeding on sand eels.',
+    verified: true,
+    likesCount: 28,
+    likedByMe: true,
+    comments: [
+      {
+        id: 'cm_1',
+        userId: 'usr_003',
+        userName: 'Mateo Rossi',
+        userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300',
+        content: 'Unbelievable flight stamina! We spotted a satellite tagged specimen nearby last week.',
+        timestamp: '1 hour ago'
+      }
+    ]
+  },
+  {
+    id: 'sg_102',
+    userId: 'usr_004',
+    userName: 'Elena Rostova',
+    userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=300',
+    userTier: 'paid',
+    speciesId: 'sp_stork',
+    speciesName: 'White Stork',
+    scientificName: 'Ciconia ciconia',
+    latitude: 36.01,
+    longitude: -5.60,
+    locationName: 'Tarifa Strait Lookout, Spain',
+    region: 'Europe',
+    timestamp: '5 hours ago',
+    photoUrl: 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?auto=format&fit=crop&q=80&w=800',
+    flockCount: 310,
+    behavior: 'flying',
+    notes: 'Massive thermal soaring event over Gibraltar! Thermal currents pushed them up 1,200m before sea crossing.',
+    verified: true,
+    likesCount: 45,
+    likedByMe: false,
+    isHotspotExclusive: true,
+    hotspotName: 'Strait of Gibraltar Migration Chokepoint',
+    comments: []
+  },
+  {
+    id: 'sg_103',
+    userId: 'usr_001',
+    userName: 'Alex Rivera',
+    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300',
+    userTier: 'free',
+    speciesId: 'sp_osprey',
+    speciesName: 'Osprey (Fish Hawk)',
+    scientificName: 'Pandion haliaetus',
+    latitude: 38.93,
+    longitude: -74.96,
+    locationName: 'Cape May Coastal Marsh, New Jersey, USA',
+    region: 'North America',
+    timestamp: '1 day ago',
+    photoUrl: 'https://images.unsplash.com/photo-1606567595334-d39972c85dbe?auto=format&fit=crop&q=80&w=800',
+    flockCount: 3,
+    behavior: 'feeding',
+    notes: 'Caught a fresh flounder right off the estuary! Diving from 25m height.',
+    verified: true,
+    likesCount: 19,
+    likedByMe: false,
+    comments: []
+  },
+  {
+    id: 'sg_104',
+    userId: 'usr_005',
+    userName: 'Kenji Takahashi',
+    userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300',
+    userTier: 'paid',
+    speciesId: 'sp_godwit',
+    speciesName: 'Bar-tailed Godwit',
+    scientificName: 'Limosa lapponica',
+    latitude: -36.84,
+    longitude: 174.76,
+    locationName: 'Firth of Thames, New Zealand',
+    region: 'Asia-Pacific',
+    timestamp: '2 days ago',
+    photoUrl: 'https://images.unsplash.com/photo-1618172193763-c511deb635ca?auto=format&fit=crop&q=80&w=800',
+    flockCount: 180,
+    behavior: 'resting',
+    notes: 'Flock arrived directly after 9 days non-stop flight from Alaska! Plumage in full transition.',
+    verified: true,
+    likesCount: 62,
+    likedByMe: true,
+    comments: []
+  },
+  {
+    id: 'sg_105',
+    userId: 'usr_001',
+    userName: 'Alex Rivera',
+    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300',
+    userTier: 'free',
+    speciesId: 'sp_sandhill_crane',
+    speciesName: 'Sandhill Crane',
+    scientificName: 'Antigone canadensis',
+    latitude: 40.71,
+    longitude: -99.08,
+    locationName: 'Platte River Valley, Kearney, NE, USA',
+    region: 'North America',
+    timestamp: '3 days ago',
+    photoUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=800',
+    flockCount: 1450,
+    behavior: 'resting',
+    notes: 'Massive sunset gathering along the sandbars. Bugling calls audible from over 2 miles away!',
+    verified: true,
+    likesCount: 34,
+    likedByMe: false,
+    comments: []
+  },
+  {
+    id: 'sg_106',
+    userId: 'usr_001',
+    userName: 'Alex Rivera',
+    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300',
+    userTier: 'free',
+    speciesId: 'sp_hummingbird',
+    speciesName: 'Ruby-throated Hummingbird',
+    scientificName: 'Archilochus colubris',
+    latitude: 47.60,
+    longitude: -122.33,
+    locationName: 'Discovery Park Coastal Bluff, Seattle, WA, USA',
+    region: 'North America',
+    timestamp: '4 days ago',
+    photoUrl: 'https://images.unsplash.com/photo-1520808663317-647b476a81b9?auto=format&fit=crop&q=80&w=800',
+    flockCount: 1,
+    behavior: 'feeding',
+    notes: 'Single male feeding at wild honeysuckle before evening roost. High hover frequency.',
+    verified: true,
+    likesCount: 22,
+    likedByMe: false,
+    comments: []
+  }
+];
+
+export const LEADERBOARD_DATA: Record<string, LeaderboardEntry[]> = {
+  'Global': [
+    { rank: 1, userId: 'usr_002', name: 'Dr. Sarah Lin', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300', region: 'North America', sightings: 84, rareCount: 19, tier: 'paid', badgeTitle: 'Golden Eagle Sentinel', rewardUnlocked: '1 Year Free Premium Hotspot Access' },
+    { rank: 2, userId: 'usr_004', name: 'Elena Rostova', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=300', region: 'Europe', sightings: 72, rareCount: 15, tier: 'paid', badgeTitle: 'Gibraltar Master Observer', rewardUnlocked: 'Exclusive Optics Gear Voucher' },
+    { rank: 3, userId: 'usr_005', name: 'Kenji Takahashi', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300', region: 'Asia-Pacific', sightings: 68, rareCount: 14, tier: 'paid', badgeTitle: 'Pacific Flyway Ranger', rewardUnlocked: 'Field Ornithology Research Grant' },
+    { rank: 4, userId: 'usr_006', name: 'Marcus Vance', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300', region: 'North America', sightings: 51, rareCount: 9, tier: 'paid', badgeTitle: 'Mississippi Flyway Tracker', rewardUnlocked: 'VIP Hotspot Badge' },
+    { rank: 5, userId: 'usr_001', name: 'Alex Rivera (You)', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300', region: 'North America', sightings: 12, rareCount: 3, tier: 'free', badgeTitle: 'Rising Falcon Spotter', rewardUnlocked: '3 Sightings away from Free VIP Pass!' }
+  ],
+  'North America': [
+    { rank: 1, userId: 'usr_002', name: 'Dr. Sarah Lin', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300', region: 'North America', sightings: 84, rareCount: 19, tier: 'paid', badgeTitle: 'Golden Eagle Sentinel', rewardUnlocked: '1 Year Free Premium Hotspot Access' },
+    { rank: 2, userId: 'usr_006', name: 'Marcus Vance', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300', region: 'North America', sightings: 51, rareCount: 9, tier: 'paid', badgeTitle: 'Mississippi Flyway Tracker', rewardUnlocked: 'VIP Hotspot Badge' },
+    { rank: 3, userId: 'usr_001', name: 'Alex Rivera (You)', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300', region: 'North America', sightings: 12, rareCount: 3, tier: 'free', badgeTitle: 'Rising Falcon Spotter', rewardUnlocked: '3 Sightings away from Free VIP Pass!' }
+  ],
+  'Europe': [
+    { rank: 1, userId: 'usr_004', name: 'Elena Rostova', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=300', region: 'Europe', sightings: 72, rareCount: 15, tier: 'paid', badgeTitle: 'Gibraltar Master Observer', rewardUnlocked: 'Exclusive Optics Gear Voucher' },
+    { rank: 2, userId: 'usr_007', name: 'Lukas Schmidt', avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=300', region: 'Europe', sightings: 44, rareCount: 8, tier: 'free', badgeTitle: 'Alps Osprey Guardian', rewardUnlocked: 'Pro Observer Pin' }
+  ],
+  'Asia-Pacific': [
+    { rank: 1, userId: 'usr_005', name: 'Kenji Takahashi', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300', region: 'Asia-Pacific', sightings: 68, rareCount: 14, tier: 'paid', badgeTitle: 'Pacific Flyway Ranger', rewardUnlocked: 'Field Ornithology Research Grant' }
+  ]
+};
+
+export const REWARD_MILESTONES: RewardMilestone[] = [
+  {
+    id: 'rw_01',
+    title: 'Bronze Observer',
+    requiredSightings: 5,
+    description: 'Log 5 verified bird observations with accurate GPS coordinates.',
+    iconName: 'Award',
+    unlocked: true,
+    perk: 'Custom Profile Badge & Early Sightings Radar'
+  },
+  {
+    id: 'rw_02',
+    title: 'Silver Sentinel (VIP Hotspot Pass)',
+    requiredSightings: 15,
+    description: 'Log 15 verified sightings during peak migration season.',
+    iconName: 'Zap',
+    unlocked: false,
+    perk: 'Unlocks 1 Month Free VIP Hotspot Access'
+  },
+  {
+    id: 'rw_03',
+    title: 'Gold Flyway Ambassador',
+    requiredSightings: 30,
+    description: 'Log 30 sightings across at least 2 flyway regions.',
+    iconName: 'Crown',
+    unlocked: false,
+    perk: 'Featured Birder Profile + Free Optics Strap Gift'
+  },
+  {
+    id: 'rw_04',
+    title: 'Rare Species Pioneer',
+    requiredSightings: 50,
+    description: 'Discover and document 10 endangered or rare migratory species.',
+    iconName: 'Compass',
+    unlocked: false,
+    perk: 'Official Field Researcher Certification'
+  }
+];
