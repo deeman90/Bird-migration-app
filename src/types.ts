@@ -83,6 +83,7 @@ export interface ImageMetaData {
   authenticityStatus: 'authentic_camera_photo' | 'web_download_detected' | 'missing_metadata';
   failureReason?: string;
   confidenceScore?: number;
+  imageHash?: string;
 }
 
 export interface Sighting {
@@ -114,6 +115,7 @@ export interface Sighting {
   deviceType?: string;
   pointsEarned?: number;
   userSightingsCount?: number;
+  imageHash?: string;
 }
 
 export interface RoutePoint {

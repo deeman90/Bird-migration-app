@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { BirdSpecies, Sighting, SightingBehavior, User, ImageMetaData } from '../types';
 import { extractImageExif, ExtractedExifData } from '../utils/exifParser';
 import { uploadSightingPhotoToSupabase } from '../services/sightingsService';
+import { computeImageHash, checkDuplicateImage } from '../utils/imageHasher';
 import { Camera, MapPin, Upload, Navigation, CheckCircle2, AlertCircle, Sparkles, Plus, Image as ImageIcon, Crosshair, RefreshCw, Tag, ShieldCheck, Search, ShieldAlert, AlertTriangle, Smartphone } from 'lucide-react';
 
 interface SightingLoggerProps {
@@ -14,6 +15,7 @@ interface SightingLoggerProps {
   initialCoords?: { lat: number; lng: number } | null;
   onUpdateUser?: (updatedUser: User) => void;
   onOpenRestrictionModal?: () => void;
+  existingSightings?: Sighting[];
 }
 
 // Sample demo images for easy testing if user doesn't upload a file from disk
@@ -34,6 +36,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
   initialCoords,
   onUpdateUser,
   onOpenRestrictionModal,
+  existingSightings = [],
 }) => {
   const [selectedSpeciesId, setSelectedSpeciesId] = useState<string>(speciesList[0]?.id || '');
   const [customSpeciesName, setCustomSpeciesName] = useState<string>('');
@@ -55,8 +58,13 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
   // Photo upload & EXIF authenticity
   const [photoUrl, setPhotoUrl] = useState<string>(SAMPLE_BIRD_PHOTOS[0]);
   const [previewImage, setPreviewImage] = useState<string>(SAMPLE_BIRD_PHOTOS[0]);
+  const [currentImageFile, setCurrentImageFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [loggerError, setLoggerError] = useState<string | null>(null);
+
+  // Duplicate Image Detection state
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [isDuplicateImage, setIsDuplicateImage] = useState<boolean>(false);
 
   const [clientExif, setClientExif] = useState<ExtractedExifData | null>(null);
   const [isSimulatingWebDownload, setIsSimulatingWebDownload] = useState<boolean>(false);
@@ -201,12 +209,37 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     );
   };
 
+  // Helper to check duplicate image
+  const checkAndValidateDuplicateImage = async (input: File | Blob | string) => {
+    const dupCheck = await checkDuplicateImage({
+      imageInput: input,
+      currentUserId: currentUser.id,
+      existingSightings: existingSightings || [],
+    });
+
+    if (dupCheck.isDuplicate) {
+      setIsDuplicateImage(true);
+      const msg = dupCheck.message || 'You have already uploaded this exact same image in a previous sighting log!';
+      setDuplicateWarning(msg);
+      setLoggerError(`🚫 DUPLICATE IMAGE ERROR: You have already uploaded this exact same image in a previous sighting log. Duplicate image uploads are prohibited and no points will be recorded.`);
+      return true;
+    } else {
+      setIsDuplicateImage(false);
+      setDuplicateWarning(null);
+      return false;
+    }
+  };
+
   // Image Upload File Handler
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setCurrentImageFile(file);
       setIsUploading(true);
       setIsSimulatingWebDownload(false);
+
+      // Perform duplicate check on the selected file
+      await checkAndValidateDuplicateImage(file);
 
       try {
         const arrayBuffer = await file.arrayBuffer();
@@ -253,6 +286,14 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     if (!photoUrl || !photoUrl.trim() || !previewImage) {
       setLoggerError('No image detected. Please upload or add a bird image before logging your sighting.');
       return;
+    }
+
+    // 2.5 Strict Duplicate Image Prevention Check
+    const imageInput = currentImageFile || photoUrl || previewImage;
+    const isDuplicate = await checkAndValidateDuplicateImage(imageInput);
+    if (isDuplicate || isDuplicateImage) {
+      setLoggerError('🚫 DUPLICATE IMAGE ERROR: You cannot upload the same image more than once! Duplicate image uploads are prohibited and 0 points will be recorded.');
+      return; // Strictly stop submission! No points recorded, no duplicate sighting created.
     }
 
     // 3. Check if user flagged as downloaded web image
@@ -310,6 +351,9 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
           return;
         }
 
+        // Compute SHA-256 image hash for duplicate tracking
+        const calculatedHash = await computeImageHash(currentImageFile || photoUrl || previewImage);
+
         // Genuine field photo -> Build sighting object with ImageMetaData
         const imageMetaData: ImageMetaData = {
           isGenuinePhoto: true,
@@ -320,6 +364,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
           dateTimeCaptured: clientExif?.dateTimeOriginal || new Date().toISOString(),
           authenticityStatus: 'authentic_camera_photo',
           confidenceScore: authData.confidenceScore || 98,
+          imageHash: calculatedHash,
         };
 
         let speciesObj = speciesList.find((sp) => sp.id === selectedSpeciesId);
@@ -355,6 +400,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
           comments: [],
           weather,
           imageMetaData,
+          imageHash: calculatedHash,
           deviceType: deviceType || clientExif?.model || 'Mobile Smartphone Camera',
           pointsEarned: 100,
           userSightingsCount: (currentUser.sightingsCount || 0) + 1,
@@ -446,7 +492,31 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
           
-          {loggerError && (
+          {duplicateWarning && (
+            <div className="p-4 bg-rose-950/80 border-2 border-rose-500 rounded-lg space-y-2 animate-in fade-in shadow-xl">
+              <div className="flex items-start space-x-3">
+                <AlertTriangle className="w-6 h-6 text-rose-400 shrink-0 mt-0.5 animate-bounce" />
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-syne font-extrabold text-sm text-rose-200 uppercase tracking-tight flex items-center gap-2">
+                      <span>🚫 DUPLICATE IMAGE DETECTED</span>
+                    </h3>
+                    <span className="font-mono-code text-[10px] bg-rose-500/30 text-rose-300 border border-rose-500/50 px-2 py-0.5 rounded font-bold uppercase">
+                      0 Points Awarded
+                    </span>
+                  </div>
+                  <p className="font-mono-code text-xs text-rose-200/90 leading-relaxed">
+                    {duplicateWarning}
+                  </p>
+                  <p className="font-mono-code text-[11px] text-amber-300 font-semibold pt-1">
+                    ⚠️ You cannot upload the same image more than once. Please upload or capture a new bird photograph to log your sighting and earn points.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {loggerError && !duplicateWarning && (
             <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded text-rose-300 font-mono-code text-xs uppercase tracking-wider flex items-center justify-between animate-in fade-in">
               <span>{loggerError}</span>
               <button

@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Website Green Gradients -->
+    <linearGradient id="bgGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0e1f18"/>
+      <stop offset="50%" stop-color="#0b0c0d"/>
+      <stop offset="100%" stop-color="#05120c"/>
+    </linearGradient>
+
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#55ffc4"/>
+      <stop offset="50%" stop-color="#00ffaa"/>
+      <stop offset="100%" stop-color="#00b377"/>
+    </linearGradient>
+
+    <linearGradient id="darkEmeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#008055"/>
+      <stop offset="100%" stop-color="#004d33"/>
+    </linearGradient>
+
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00ffaa"/>
+      <stop offset="100%" stop-color="#006644"/>
+    </linearGradient>
+
+    <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00ffaa" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#00ffaa" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Drop Shadow Filter for Sharp Depth -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGlow)"/>
+  
+  <!-- Subtle Outer Neon Accent Border -->
+  <rect width="504" height="504" x="4" y="4" rx="124" fill="none" stroke="#00ffaa" stroke-width="4" stroke-opacity="0.3"/>
+
+  <!-- Radial Glow Behind Compass -->
+  <circle cx="256" cy="256" r="200" fill="url(#centerGlow)"/>
+
+  <!-- Outer Bezel Ring -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="url(#ringGrad)" stroke-width="12" filter="url(#glow)"/>
+  <circle cx="256" cy="256" r="170" fill="none" stroke="#00ffaa" stroke-width="2" stroke-opacity="0.4" stroke-dasharray="6,6"/>
+
+  <!-- Compass Dial Ticks -->
+  <!-- Major Cardinal Ticks (N, S, E, W) -->
+  <line x1="256" y1="72" x2="256" y2="96" stroke="#00ffaa" stroke-width="8" stroke-linecap="round"/>
+  <line x1="256" y1="416" x2="256" y2="440" stroke="#00ffaa" stroke-width="8" stroke-linecap="round"/>
+  <line x1="72" y1="256" x2="96" y2="256" stroke="#00ffaa" stroke-width="8" stroke-linecap="round"/>
+  <line x1="416" y1="256" x2="440" y2="256" stroke="#00ffaa" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Ordinal Ticks (NE, NW, SE, SW) -->
+  <line x1="126" y1="126" x2="143" y2="143" stroke="#00ffaa" stroke-width="5" stroke-opacity="0.7" stroke-linecap="round"/>
+  <line x1="386" y1="126" x2="369" y2="143" stroke="#00ffaa" stroke-width="5" stroke-opacity="0.7" stroke-linecap="round"/>
+  <line x1="126" y1="386" x2="143" y2="369" stroke="#00ffaa" stroke-width="5" stroke-opacity="0.7" stroke-linecap="round"/>
+  <line x1="386" y1="386" x2="369" y2="369" stroke="#00ffaa" stroke-width="5" stroke-opacity="0.7" stroke-linecap="round"/>
+
+  <!-- Cardinal Letter "N" -->
+  <text x="256" y="132" font-family="'Syne', 'Inter', sans-serif" font-weight="900" font-size="28" fill="#00ffaa" text-anchor="middle" dominant-baseline="central" letter-spacing="1">N</text>
+
+  <!-- Secondary Star Points (Background Compass Rose) -->
+  <!-- Horizontal & Vertical Minor Needles -->
+  <polygon points="256,150 268,256 256,240" fill="url(#darkEmeraldGrad)" opacity="0.6"/>
+  <polygon points="256,150 244,256 256,240" fill="#003322" opacity="0.6"/>
+
+  <polygon points="256,362 268,256 256,272" fill="url(#darkEmeraldGrad)" opacity="0.6"/>
+  <polygon points="256,362 244,256 256,272" fill="#003322" opacity="0.6"/>
+
+  <polygon points="362,256 256,268 272,256" fill="url(#darkEmeraldGrad)" opacity="0.6"/>
+  <polygon points="362,256 256,244 272,256" fill="#003322" opacity="0.6"/>
+
+  <polygon points="150,256 256,268 240,256" fill="url(#darkEmeraldGrad)" opacity="0.6"/>
+  <polygon points="150,256 256,244 240,256" fill="#003322" opacity="0.6"/>
+
+  <!-- PRIMARY COMPASS NEEDLE (North-Facing Arrow in Vibrant Website Green) -->
+  <!-- North Arrow - Left Facet (Bright Emerald Glow) -->
+  <polygon points="256,90 256,256 212,256" fill="url(#emeraldGrad)" filter="url(#glow)"/>
+  <!-- North Arrow - Right Facet (Slightly Darker Emerald Shadow) -->
+  <polygon points="256,90 256,256 300,256" fill="#00cc88"/>
+
+  <!-- South Arrow - Left Facet (Dark Contrasting Base) -->
+  <polygon points="256,422 256,256 212,256" fill="#0a2e21"/>
+  <!-- South Arrow - Right Facet -->
+  <polygon points="256,422 256,256 300,256" fill="#051a12"/>
+
+  <!-- Center Pivot Cap -->
+  <circle cx="256" cy="256" r="28" fill="#0b0c0d" stroke="#00ffaa" stroke-width="4"/>
+  <circle cx="256" cy="256" r="14" fill="url(#emeraldGrad)"/>
+  <circle cx="256" cy="256" r="5" fill="#ffffff"/>
+</svg>

@@ -28,6 +28,7 @@ function mapRowToSighting(row: any): Sighting {
     hotspotName: row.hotspot_name || '',
     weather: row.weather || '',
     imageMetaData: row.image_meta_data || undefined,
+    imageHash: row.image_meta_data?.imageHash || undefined,
     deviceType: row.device_type || 'Mobile Smartphone Camera',
     pointsEarned: Number(row.points_earned) || 100,
     userSightingsCount: Number(row.user_sightings_count) || 1,
@@ -58,7 +59,12 @@ function mapSightingToRow(s: Partial<Sighting>) {
   if (s.isHotspotExclusive !== undefined) row.is_hotspot_exclusive = s.isHotspotExclusive;
   if (s.hotspotName !== undefined) row.hotspot_name = s.hotspotName;
   if (s.weather !== undefined) row.weather = s.weather;
-  if (s.imageMetaData !== undefined) row.image_meta_data = s.imageMetaData;
+  if (s.imageMetaData !== undefined || s.imageHash !== undefined) {
+    row.image_meta_data = {
+      ...(s.imageMetaData || {}),
+      imageHash: s.imageHash || s.imageMetaData?.imageHash,
+    };
+  }
   if (s.deviceType !== undefined) row.device_type = s.deviceType;
   if (s.pointsEarned !== undefined) row.points_earned = s.pointsEarned;
   if (s.userSightingsCount !== undefined) row.user_sightings_count = s.userSightingsCount;

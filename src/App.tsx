@@ -422,6 +422,7 @@ export default function App() {
             initialCoords={pickedCoords}
             onUpdateUser={(updatedUser) => setCurrentUser(updatedUser)}
             onOpenRestrictionModal={() => setIsRestrictionModalOpen(true)}
+            existingSightings={sightings}
           />
         )}
 
