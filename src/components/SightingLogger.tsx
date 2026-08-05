@@ -50,6 +50,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
   const [behavior, setBehavior] = useState<SightingBehavior>('flying');
   const [notes, setNotes] = useState<string>('');
   const [weather, setWeather] = useState<string>('Clear, North-East Wind 15 knots');
+  const [deviceType, setDeviceType] = useState<string>('Apple iPhone 15 Pro (Camera)');
 
   // Photo upload & EXIF authenticity
   const [photoUrl, setPhotoUrl] = useState<string>(SAMPLE_BIRD_PHOTOS[0]);
@@ -250,7 +251,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
 
     // 2. Check if no image is attached/detected
     if (!photoUrl || !photoUrl.trim() || !previewImage) {
-      setLoggerError('No image detected. Please upload or select a bird photo before logging your sighting.');
+      setLoggerError('No image detected. Please upload or add a bird image before logging your sighting.');
       return;
     }
 
@@ -287,7 +288,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       setIsVerifyingPhoto(false);
 
       if (!json.success || json.noImageDetected) {
-        setLoggerError(json.error || 'No valid image detected. Please attach or upload a bird photo to continue.');
+        setLoggerError(json.error || 'No valid image detected. Please upload or add a bird image to continue.');
         return;
       }
 
@@ -296,7 +297,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
 
         // If no image detected from analysis, prompt user to add an image (do NOT suspend)
         if (authData.authenticityStatus === 'no_image_detected') {
-          setLoggerError(authData.failureReason || 'No image detected. Please upload or select a clear bird photo.');
+          setLoggerError(authData.failureReason || 'No image detected. Please upload or add a clear bird image.');
           return;
         }
 
@@ -354,6 +355,9 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
           comments: [],
           weather,
           imageMetaData,
+          deviceType: deviceType || clientExif?.model || 'Mobile Smartphone Camera',
+          pointsEarned: 100,
+          userSightingsCount: (currentUser.sightingsCount || 0) + 1,
         };
 
         onAddSighting(newSighting);
@@ -755,21 +759,56 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
             )}
           </div>
 
-          {/* Section 4: Flock Count */}
-          <div>
-            <label className="font-mono-code text-xs text-[#edeeef]/60 uppercase tracking-widest block mb-1">Flock Size / Count</label>
-            <input
-              type="number"
-              min={1}
-              value={flockCount}
-              onChange={(e) => setFlockCount(Number(e.target.value))}
-              className="w-full bg-[rgba(237,238,239,0.06)] border border-[rgba(237,238,239,0.15)] rounded px-3.5 py-2.5 text-base sm:text-sm text-[#edeeef] focus:outline-none focus:border-[#00ffaa]"
-            />
+          {/* Section 4: Device Type & Flock Count */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="font-mono-code text-xs text-[#edeeef]/60 uppercase tracking-widest block mb-1">
+                Type of Device Used to Snap Photo
+              </label>
+              <input
+                type="text"
+                value={deviceType}
+                onChange={(e) => setDeviceType(e.target.value)}
+                placeholder="e.g., iPhone 15 Pro, Canon EOS R5, Nikon D850, Sony Alpha 1"
+                className="w-full bg-[rgba(237,238,239,0.06)] border border-[rgba(237,238,239,0.15)] rounded px-3.5 py-2.5 text-base sm:text-sm text-[#edeeef] focus:outline-none focus:border-[#00ffaa]"
+              />
+            </div>
+
+            <div>
+              <label className="font-mono-code text-xs text-[#edeeef]/60 uppercase tracking-widest block mb-1">
+                Number of Birds (Flock Size)
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={flockCount}
+                onChange={(e) => setFlockCount(Number(e.target.value))}
+                className="w-full bg-[rgba(237,238,239,0.06)] border border-[rgba(237,238,239,0.15)] rounded px-3.5 py-2.5 text-base sm:text-sm text-[#edeeef] focus:outline-none focus:border-[#00ffaa]"
+              />
+            </div>
           </div>
 
-          {/* Notes & Weather */}
+          {/* Sighting & Points Recording Preview Banner */}
+          <div className="p-3.5 rounded bg-emerald-500/10 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-2 text-xs font-mono-code text-emerald-400">
+            <div className="flex items-center space-x-2">
+              <Sparkles className="w-4 h-4 text-[#00ffaa] animate-bounce" />
+              <span>
+                Record Impact: <strong>+100 Points</strong> will be credited to your account profile!
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Tag className="w-3.5 h-3.5 text-cyan-400" />
+              <span>
+                Sighting Log Record: <strong>#{ (currentUser.sightingsCount || 0) + 1 }</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Field Notes & Weather */}
           <div>
-            <label className="font-mono-code text-xs text-[#edeeef]/60 uppercase tracking-widest block mb-1">Field Notes & Weather Conditions</label>
+            <label className="font-mono-code text-xs text-[#edeeef]/60 uppercase tracking-widest block mb-1">
+              Field Notes & Observation Details
+            </label>
             <textarea
               rows={3}
               value={notes}

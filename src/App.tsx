@@ -22,12 +22,15 @@ import { AuthPage } from './components/AuthPage';
 import { SettingsPage } from './components/SettingsPage';
 import { AIBirdIdentifierModal } from './components/AIBirdIdentifierModal';
 import { AccountRestrictionModal } from './components/AccountRestrictionModal';
+import { PaymentModal } from './components/PaymentModal.js';
+import { SubscriptionRecord } from './services/subscriptionService.js';
 import { supabase } from './supabaseClient.js';
 import {
   fetchSightingsFromSupabase,
   createSightingInSupabase,
   updateSightingInSupabase,
   deleteSightingInSupabase,
+  fetchUserSightingsCountFromSupabase,
 } from './services/sightingsService';
 import { CheckCircle2, Sparkles, AlertCircle, Compass, Lock } from 'lucide-react';
 
@@ -38,8 +41,23 @@ export default function App() {
   // App Core Data States with localStorage persistence
   const [currentUser, setCurrentUser] = useState<User>(() => {
     const saved = localStorage.getItem('aerotrack_user');
-    return saved ? JSON.parse(saved) : INITIAL_USER_FREE;
+    const user = saved ? JSON.parse(saved) : INITIAL_USER_FREE;
+    delete user.restrictedUntil;
+    delete user.restrictionReason;
+    return user;
   });
+
+  // Ensure any cached suspension is cleared for testing
+  useEffect(() => {
+    if (currentUser.restrictedUntil || currentUser.restrictionReason) {
+      setCurrentUser(prev => {
+        const cleaned = { ...prev };
+        delete cleaned.restrictedUntil;
+        delete cleaned.restrictionReason;
+        return cleaned;
+      });
+    }
+  }, []);
 
   const [sightings, setSightings] = useState<Sighting[]>(() => {
     const saved = localStorage.getItem('aerotrack_sightings');
@@ -60,6 +78,9 @@ export default function App() {
   
   // AI Bird Scanner Modal State
   const [isAiScannerOpen, setIsAiScannerOpen] = useState<boolean>(false);
+
+  // Paystack & Flutterwave Payment Modal State
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
 
   // Account Restriction Modal State
   const [isRestrictionModalOpen, setIsRestrictionModalOpen] = useState<boolean>(false);
@@ -131,26 +152,63 @@ export default function App() {
     }
   }, [activeTab]);
 
-  // Toggle User Tier (Free <-> Paid)
+  // Toggle User Tier / Open Paystack & Flutterwave Payment Modal
   const handleToggleUserTier = () => {
-    const newTier = currentUser.tier === 'paid' ? 'free' : 'paid';
-    const updatedUser: User = {
-      ...currentUser,
-      tier: newTier,
-    };
-    setCurrentUser(updatedUser);
-
-    if (newTier === 'paid') {
-      showToast('🎉 VIP PRO Unlocked! Full access to Live Migration Radar & Hotspots enabled.', 'pro');
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
+    if (currentUser.tier === 'free') {
+      setIsPaymentModalOpen(true);
     } else {
+      const updatedUser: User = {
+        ...currentUser,
+        tier: 'free',
+      };
+      setCurrentUser(updatedUser);
       showToast('Switched to Free Observer mode.', 'success');
     }
   };
+
+  // Payment Success Callback (Paystack / Flutterwave)
+  const handlePaymentSuccess = (newTier: 'paid', subscription: SubscriptionRecord) => {
+    const updatedUser: User = {
+      ...currentUser,
+      tier: 'paid',
+    };
+    setCurrentUser(updatedUser);
+    showToast(`🎉 VIP PRO Unlocked via ${subscription.provider.toUpperCase()}! Ref: ${subscription.transactionRef}`, 'pro');
+    confetti({
+      particleCount: 120,
+      spread: 80,
+      origin: { y: 0.6 },
+    });
+  };
+
+  // Sync user sightings count from Supabase database
+  useEffect(() => {
+    async function syncSightingsCount() {
+      const { data: authData } = await supabase.auth.getUser();
+      const authUserId = authData?.user?.id;
+
+      if (authUserId) {
+        const { count, error } = await supabase
+          .from('sightings')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', authUserId);
+
+        if (!error && count !== null) {
+          setCurrentUser((prev) => ({ ...prev, sightingsCount: count }));
+          return;
+        }
+      }
+
+      // Fallback for local state when offline or unauthenticated
+      const activeUserId = authUserId || currentUser.id;
+      const userSightings = sightings.filter(
+        (s) => s.userId === activeUserId || (s.userName && s.userName.toLowerCase() === currentUser.name.toLowerCase())
+      );
+      setCurrentUser((prev) => ({ ...prev, sightingsCount: userSightings.length }));
+    }
+
+    syncSightingsCount();
+  }, [session, sightings]);
 
   // Load sightings from Supabase
   useEffect(() => {
@@ -461,6 +519,14 @@ export default function App() {
           setIsRestrictionModalOpen(false);
           showToast('Account restriction reset for demo testing.', 'success');
         }}
+      />
+
+      {/* Paystack & Flutterwave Gateway Subscription Modal */}
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        currentUser={currentUser}
+        onPaymentSuccess={handlePaymentSuccess}
       />
     </div>
   );

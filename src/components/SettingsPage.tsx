@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, UserAddress, UserTier } from '../types';
 import { uploadFileToSupabaseStorage, deleteFileFromSupabaseStorage } from '../services/storageService.js';
+import { getUserSubscription, cancelUserSubscription, SubscriptionRecord } from '../services/subscriptionService.js';
 import {
   User as UserIcon,
   Camera,
@@ -27,6 +28,10 @@ import {
   Award,
   ChevronRight,
   LogOut,
+  Gift,
+  Copy,
+  Share2,
+  Users,
 } from 'lucide-react';
 
 interface SettingsPageProps {
@@ -79,7 +84,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onToggleUserTier,
   onLogout,
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'address' | 'social' | 'notifications' | 'account'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'address' | 'social' | 'notifications' | 'referral' | 'account'>('profile');
 
   // Local Form States initialized from currentUser
   const [name, setName] = useState(currentUser.name || '');
@@ -88,6 +93,27 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [avatar, setAvatar] = useState(currentUser.avatar || '');
   const [region, setRegion] = useState(currentUser.region || 'North America');
   const [bio, setBio] = useState(currentUser.bio || '');
+
+  // Referral Program States
+  const defaultRefCode = currentUser.referralCode || `BMA-${(currentUser.name || 'BIRDER').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)}-${(currentUser.id || '777').slice(-4).toUpperCase()}`;
+  const [referralCode, setReferralCode] = useState(defaultRefCode);
+  const [referredCount, setReferredCount] = useState(currentUser.referredCount || 3);
+  const [hasCopied, setHasCopied] = useState(false);
+  const [friendCodeInput, setFriendCodeInput] = useState('');
+  const [referralStatusMsg, setReferralStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Active Supabase Subscription Record state
+  const [dbSub, setDbSub] = useState<SubscriptionRecord | null>(null);
+
+  useEffect(() => {
+    async function loadSub() {
+      if (currentUser.id) {
+        const sub = await getUserSubscription(currentUser.id);
+        setDbSub(sub);
+      }
+    }
+    loadSub();
+  }, [currentUser.id, currentUser.tier]);
 
   // Address fields
   const [street, setStreet] = useState(currentUser.address?.street || '');
@@ -164,6 +190,47 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   };
 
+  // Copy Referral Code Handler
+  const handleCopyReferralCode = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(referralCode);
+    }
+    setHasCopied(true);
+    setTimeout(() => setHasCopied(false), 2500);
+  };
+
+  // Redeem Friend's Referral Code Handler
+  const handleRedeemFriendCode = (e?: React.SyntheticEvent) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
+    const cleanCode = friendCodeInput.trim().toUpperCase();
+    if (!cleanCode) {
+      setReferralStatusMsg({ type: 'error', text: 'Please enter a valid referral code.' });
+      return;
+    }
+    if (cleanCode === referralCode.toUpperCase()) {
+      setReferralStatusMsg({ type: 'error', text: 'You cannot redeem your own referral code!' });
+      return;
+    }
+
+    const bonusPoints = 50;
+    const newPointsTotal = (currentUser.points || 0) + bonusPoints;
+    const updatedUser: User = {
+      ...currentUser,
+      points: newPointsTotal,
+      referralCode,
+      referredCount,
+    };
+
+    onSaveUser(updatedUser);
+    setReferralStatusMsg({
+      type: 'success',
+      text: `🎉 Success! Referral code "${cleanCode}" applied! +${bonusPoints} Flyway Points added to your account.`,
+    });
+    setFriendCodeInput('');
+  };
+
   // Quick Sample Address Fill
   const handleFillSampleAddress = () => {
     setStreet('1200 San Antonio Road');
@@ -203,6 +270,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         weeklyDigest,
       },
       privacyMode,
+      referralCode,
+      referredCount,
     };
 
     onSaveUser(updatedUser);
@@ -322,6 +391,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <div className="flex items-center space-x-2.5">
                 <Bell className="w-4 h-4 shrink-0" />
                 <span className="whitespace-nowrap">Alerts</span>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 opacity-60 hidden lg:block" />
+            </button>
+
+            <button
+              onClick={() => setActiveTab('referral')}
+              className={`min-h-[44px] shrink-0 lg:w-full flex items-center justify-between px-3.5 py-2.5 rounded text-xs font-mono-code uppercase tracking-wider transition-all cursor-pointer ${
+                activeTab === 'referral'
+                  ? 'bg-[#00ffaa] text-[#0b0c0d] font-bold'
+                  : 'text-[#edeeef]/60 hover:bg-[#edeeef]/5 hover:text-[#edeeef]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Gift className="w-4 h-4 shrink-0" />
+                <span className="whitespace-nowrap">Referral Program</span>
               </div>
               <ChevronRight className="w-3.5 h-3.5 opacity-60 hidden lg:block" />
             </button>
@@ -827,6 +911,162 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               </div>
             )}
 
+            {/* TAB: Referral Program & Points */}
+            {activeTab === 'referral' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="border-b border-slate-800 pb-4">
+                  <h2 className="text-lg font-bold text-white flex items-center space-x-2">
+                    <Gift className="w-5 h-5 text-[#00ffaa]" />
+                    <span>Referral Program & Bonus Points</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Share your unique referral code with fellow birdwatchers to earn extra Flyway Points and unlock VIP perks!
+                  </p>
+                </div>
+
+                {/* Referral Status Banner */}
+                {referralStatusMsg && (
+                  <div
+                    className={`p-4 rounded-xl border flex items-center justify-between ${
+                      referralStatusMsg.type === 'success'
+                        ? 'bg-[#00ffaa]/10 border-[#00ffaa]/40 text-[#00ffaa]'
+                        : 'bg-red-500/10 border-red-500/40 text-red-400'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <CheckCircle2 className="w-5 h-5 shrink-0" />
+                      <p className="text-xs font-semibold">{referralStatusMsg.text}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Main Referral Code Card */}
+                <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border border-slate-800 space-y-4 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+                        <Sparkles className="w-4 h-4 text-[#00ffaa]" />
+                        <span>Your Unique Referral Code</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Share this code with new users when they register to earn <strong className="text-[#00ffaa]">+50 bonus points</strong> per referral.
+                      </p>
+                    </div>
+                    <span className="self-start sm:self-auto px-3 py-1 rounded-full bg-[#00ffaa]/10 border border-[#00ffaa]/30 text-[#00ffaa] text-[11px] font-mono-code font-bold tracking-wider">
+                      +50 PTS / REFERRAL
+                    </span>
+                  </div>
+
+                  {/* Referral Code Textfield & Copy Button */}
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={referralCode}
+                        onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-[#00ffaa] rounded-xl px-4 py-3 text-sm font-mono-code font-extrabold text-[#00ffaa] tracking-widest focus:outline-none shadow-inner"
+                        placeholder="YOUR-REFERRAL-CODE"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono-code text-slate-500 uppercase">
+                        Your Code
+                      </span>
+                    </div>
+
+                    {/* Referral Action Buttons */}
+                    <button
+                      type="button"
+                      onClick={handleCopyReferralCode}
+                      className="px-6 py-3 rounded-xl bg-[#00ffaa] text-[#0b0c0d] font-syne font-extrabold text-xs uppercase tracking-wider hover:bg-[#00ffaa]/90 transition-all cursor-pointer shadow-lg shadow-[#00ffaa]/20 flex items-center justify-center space-x-2 shrink-0"
+                    >
+                      {hasCopied ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>Code Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          <span>Copy Referral Code</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Referral Link Preview */}
+                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-center justify-between text-xs font-mono-code text-slate-400 overflow-x-auto">
+                    <span className="truncate">https://aerotrack.bma.io/join?ref={referralCode}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (navigator.clipboard) {
+                          navigator.clipboard.writeText(`https://aerotrack.bma.io/join?ref=${referralCode}`);
+                        }
+                        setHasCopied(true);
+                        setTimeout(() => setHasCopied(false), 2500);
+                      }}
+                      className="ml-2 text-[#00ffaa] hover:underline flex items-center space-x-1 shrink-0 font-sans text-[11px]"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Copy Link</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Redeem Friend's Referral Code Section */}
+                <div className="p-6 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+                      <Gift className="w-4 h-4 text-amber-400" />
+                      <span>Have a Friend's Referral Code?</span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Enter a birder referral code below to instantly claim your +50 bonus points.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="text"
+                      value={friendCodeInput}
+                      onChange={(e) => setFriendCodeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleRedeemFriendCode();
+                        }
+                      }}
+                      placeholder="e.g. BMA-BIRDER-9921"
+                      className="flex-1 bg-slate-900 border border-slate-800 focus:border-amber-400 rounded-xl px-4 py-3 text-sm font-mono-code text-white placeholder:text-slate-600 focus:outline-none uppercase"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRedeemFriendCode()}
+                      className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center space-x-2 shrink-0 shadow-lg shadow-amber-500/20"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>Redeem Bonus Points</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Referral Stats Summary */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-center">
+                    <p className="text-2xl font-extrabold text-[#00ffaa]">{referredCount}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Successful Referrals</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-center">
+                    <p className="text-2xl font-extrabold text-amber-400">+{referredCount * 50} PTS</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Points Earned via Referrals</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-center">
+                    <p className="text-2xl font-extrabold text-cyan-400">{currentUser.points || 0} PTS</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Total Flyway Points</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* TAB 5: Membership & Account Tier */}
             {activeTab === 'account' && (
               <div className="space-y-6 animate-in fade-in duration-200">
@@ -848,15 +1088,45 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       ) : (
                         <Lock className="w-6 h-6 text-slate-400" />
                       )}
-                      <h3 className="text-lg font-extrabold text-white">
-                        {currentUser.tier === 'paid' ? 'VIP PRO Member' : 'Free Observer Tier'}
+                      <h3 className="text-lg font-extrabold text-white flex items-center space-x-2">
+                        <span>{currentUser.tier === 'paid' ? 'VIP PRO Member' : 'Free Observer Tier'}</span>
+                        {currentUser.tier === 'paid' && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono text-[10px] uppercase font-bold border border-emerald-500/30">
+                            Active
+                          </span>
+                        )}
                       </h3>
                     </div>
                     <p className="text-xs text-slate-300 max-w-md">
                       {currentUser.tier === 'paid'
                         ? 'You have full unlocked access to real-time satellite flight radar, high-density VIP hotspots, and rare species notifications.'
-                        : 'Upgrade to VIP PRO for live migration tracking, rare bird radar alerts, and exclusive access to protected sanctuary hotspots.'}
+                        : 'Upgrade to VIP PRO via Paystack or Flutterwave for live migration tracking, rare bird radar alerts, and exclusive access to protected sanctuary hotspots.'}
                     </p>
+
+                    {/* Supported Payment Gateways Badges */}
+                    <div className="mt-3 flex items-center space-x-2 text-[10px] font-mono">
+                      <span className="text-slate-400 font-sans text-xs">Supported Payment Gateways:</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold">
+                        Paystack
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold">
+                        Flutterwave
+                      </span>
+                    </div>
+
+                    {/* Active DB Subscription Detail */}
+                    {dbSub && currentUser.tier === 'paid' && (
+                      <div className="mt-3 p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] font-mono text-slate-300 space-y-1">
+                        <p className="text-amber-400 font-bold flex items-center space-x-1">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Supabase Synced Subscription:</span>
+                        </p>
+                        <p>• Provider: <strong className="text-white uppercase">{dbSub.provider}</strong></p>
+                        <p>• Ref: <strong className="text-emerald-400">{dbSub.transactionRef}</strong></p>
+                        <p>• Code: <span className="text-slate-400">{dbSub.subscriptionCode}</span></p>
+                        <p>• Valid Until: <span className="text-cyan-400">{new Date(dbSub.currentPeriodEnd || '').toLocaleDateString()}</span></p>
+                      </div>
+                    )}
                   </div>
 
                   <button
@@ -868,7 +1138,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                         : 'bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 shadow-amber-500/20'
                     }`}
                   >
-                    {currentUser.tier === 'paid' ? 'Switch to Free Tier' : 'Unlock VIP PRO ($4.99/mo)'}
+                    {currentUser.tier === 'paid' ? 'Manage / Cancel Plan' : 'Pay via Paystack / Flutterwave ($4.99/mo)'}
                   </button>
                 </div>
 
@@ -888,6 +1158,50 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
                     <p className="text-xl font-extrabold text-purple-400">{currentUser.badges?.length || 0}</p>
                     <p className="text-[11px] text-slate-400">Badges Unlocked</p>
+                  </div>
+                </div>
+
+                {/* Supabase Storage RLS Security Roles Section */}
+                <div className="p-6 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                        <span>Supabase Storage Security Roles & Policies (RLS)</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Row Level Security policies configured for bucket <code className="text-emerald-400 bg-slate-900 px-1.5 py-0.5 rounded font-mono text-[11px]">app-files</code> (SELECT, INSERT, UPDATE, DELETE).
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sqlScript = `-- Supabase Storage & Database Security Policies (RLS) for 'app-files' bucket
+INSERT INTO storage.buckets (id, name, public) VALUES ('app-files', 'app-files', false) ON CONFLICT (id) DO NOTHING;
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public & Authenticated Read Access for app-files" ON storage.objects FOR SELECT USING (bucket_id = 'app-files');
+CREATE POLICY "Authenticated User Upload to app-files" ON storage.objects FOR INSERT TO authenticated, anon WITH CHECK (bucket_id = 'app-files');
+CREATE POLICY "Owner Update Access to app-files" ON storage.objects FOR UPDATE TO authenticated, anon USING (bucket_id = 'app-files') WITH CHECK (bucket_id = 'app-files');
+CREATE POLICY "Owner Delete Access to app-files" ON storage.objects FOR DELETE TO authenticated, anon USING (bucket_id = 'app-files');`;
+                        if (navigator.clipboard) {
+                          navigator.clipboard.writeText(sqlScript);
+                        }
+                        alert('✅ Supabase Storage Security Policies SQL copied to clipboard!');
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 hover:border-emerald-500 text-slate-200 hover:text-emerald-400 font-mono text-[11px] font-bold flex items-center space-x-1.5 transition-all cursor-pointer self-start sm:self-auto shrink-0"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy Storage SQL</span>
+                    </button>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] font-mono text-slate-300 space-y-2 overflow-x-auto">
+                    <p className="text-emerald-400 font-bold">// Configured Storage Bucket ('app-files'): Private | Limit: 100MB | MIME: JPEG, PNG, WebP, HEIC, GIF, TIFF, SVG</p>
+                    <p>• <strong className="text-cyan-400">SELECT (Read):</strong> Public & Authenticated observers can view uploaded sighting photos.</p>
+                    <p>• <strong className="text-amber-400">INSERT (Upload):</strong> Authenticated/Active users can upload field photos (strict 100MB limit & image MIME validation).</p>
+                    <p>• <strong className="text-purple-400">UPDATE (Modify):</strong> File owners can update their existing stored field images.</p>
+                    <p>• <strong className="text-red-400">DELETE (Remove):</strong> File owners can delete sighting attachments.</p>
                   </div>
                 </div>
               </div>

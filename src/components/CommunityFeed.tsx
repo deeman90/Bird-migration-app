@@ -351,6 +351,22 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
                       <span className="font-semibold truncate">{s.locationName}</span>
                     </div>
 
+                    {/* Coordinates & Telemetry Telematics Panel */}
+                    <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] font-mono-code text-[#edeeef]/70">
+                      <div className="p-1.5 rounded bg-[#0b0c0d] border border-[rgba(237,238,239,0.1)]">
+                        Coordinates: <strong className="text-cyan-300">{s.latitude.toFixed(4)}°, {s.longitude.toFixed(4)}°</strong>
+                      </div>
+                      <div className="p-1.5 rounded bg-[#0b0c0d] border border-[rgba(237,238,239,0.1)]">
+                        Birds Recorded: <strong className="text-amber-300">{s.flockCount} birds</strong>
+                      </div>
+                      <div className="p-1.5 rounded bg-[#0b0c0d] border border-[rgba(237,238,239,0.1)]">
+                        Device: <strong className="text-[#edeeef]">{s.deviceType || s.imageMetaData?.deviceModel || 'Smartphone Camera'}</strong>
+                      </div>
+                      <div className="p-1.5 rounded bg-[#0b0c0d] border border-[rgba(237,238,239,0.1)]">
+                        Log Impact: <strong className="text-[#00ffaa]">+{s.pointsEarned || 100} pts (Log #{s.userSightingsCount || 1})</strong>
+                      </div>
+                    </div>
+
                     <p className="text-xs sm:text-sm text-[#edeeef]/80 mt-2.5 leading-relaxed">{s.notes}</p>
 
                     {s.weather && (

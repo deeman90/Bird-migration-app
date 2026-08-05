@@ -8,6 +8,17 @@ export interface UploadResult {
   error: any;
 }
 
+export const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB limit
+export const ALLOWED_IMAGE_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/gif',
+  'image/tiff',
+  'image/svg+xml',
+];
+
 /**
  * Uploads a file to Supabase Storage in bucket 'app-files'.
  * Follows folder structure: `${userId}/${featureName}/${itemId}/${uuid}.${extension}`
@@ -24,6 +35,21 @@ export async function uploadFileToSupabaseStorage({
   itemId?: string;
 }): Promise<UploadResult> {
   try {
+    // 1. Strict 100MB file size limit check
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      const errorMsg = `File size (${sizeMB}MB) exceeds the maximum allowed limit of 100MB.`;
+      console.warn(errorMsg);
+      return { filePath: null, signedUrl: null, error: new Error(errorMsg) };
+    }
+
+    // 2. Allowed image MIME types check
+    if (file.type && !ALLOWED_IMAGE_MIME_TYPES.includes(file.type.toLowerCase())) {
+      const errorMsg = `Invalid image type (${file.type}). Allowed image types: JPEG, PNG, WebP, HEIC, GIF, TIFF, SVG.`;
+      console.warn(errorMsg);
+      return { filePath: null, signedUrl: null, error: new Error(errorMsg) };
+    }
+
     let activeUserId = userId;
     if (!activeUserId || activeUserId === 'anonymous') {
       const { data: authData } = await supabase.auth.getUser();

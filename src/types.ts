@@ -43,6 +43,10 @@ export interface User {
     weeklyDigest: boolean;
   };
   privacyMode?: 'public' | 'blurred_location' | 'private';
+  
+  // Referral Program
+  referralCode?: string;
+  referredCount?: number;
 }
 
 export interface BirdSpecies {
@@ -107,6 +111,9 @@ export interface Sighting {
   hotspotName?: string;
   weather?: string;
   imageMetaData?: ImageMetaData;
+  deviceType?: string;
+  pointsEarned?: number;
+  userSightingsCount?: number;
 }
 
 export interface RoutePoint {

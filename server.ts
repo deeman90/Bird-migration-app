@@ -220,7 +220,7 @@ app.post('/api/verify-image-authenticity', async (req, res) => {
       return res.json({
         success: false,
         noImageDetected: true,
-        error: 'No image detected. Please upload or select a bird photo before submitting.',
+        error: 'No image detected. Please upload or add a bird image before submitting.',
       });
     }
 
@@ -268,7 +268,7 @@ app.post('/api/verify-image-authenticity', async (req, res) => {
       return res.json({
         success: false,
         noImageDetected: true,
-        error: 'No valid image detected. Please upload or attach a clear bird photo file.',
+        error: 'No valid image detected. Please upload or add a clear bird image.',
       });
     }
 

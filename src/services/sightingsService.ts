@@ -28,6 +28,9 @@ function mapRowToSighting(row: any): Sighting {
     hotspotName: row.hotspot_name || '',
     weather: row.weather || '',
     imageMetaData: row.image_meta_data || undefined,
+    deviceType: row.device_type || 'Mobile Smartphone Camera',
+    pointsEarned: Number(row.points_earned) || 100,
+    userSightingsCount: Number(row.user_sightings_count) || 1,
   };
 }
 
@@ -56,6 +59,9 @@ function mapSightingToRow(s: Partial<Sighting>) {
   if (s.hotspotName !== undefined) row.hotspot_name = s.hotspotName;
   if (s.weather !== undefined) row.weather = s.weather;
   if (s.imageMetaData !== undefined) row.image_meta_data = s.imageMetaData;
+  if (s.deviceType !== undefined) row.device_type = s.deviceType;
+  if (s.pointsEarned !== undefined) row.points_earned = s.pointsEarned;
+  if (s.userSightingsCount !== undefined) row.user_sightings_count = s.userSightingsCount;
   return row;
 }
 
@@ -174,6 +180,29 @@ export async function deleteSightingInSupabase(id: string): Promise<{ success: b
     return { success: true, error: null };
   } catch (err) {
     return { success: false, error: err };
+  }
+}
+
+export async function fetchUserSightingsCountFromSupabase(): Promise<number> {
+  try {
+    const { data: authData } = await supabase.auth.getUser();
+    const user = authData?.user;
+    if (!user) {
+      return 0;
+    }
+    const { count, error } = await supabase
+      .from('sightings')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id);
+
+    if (error) {
+      console.warn('Supabase count error:', error.message);
+      return 0;
+    }
+    return count ?? 0;
+  } catch (err) {
+    console.warn('Supabase count catch error:', err);
+    return 0;
   }
 }
 
