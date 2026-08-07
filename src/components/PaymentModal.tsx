@@ -65,7 +65,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   useEffect(() => {
     if (currentUser.email) setEmail(currentUser.email);
     if (currentUser.name) setName(currentUser.name);
-  }, [currentUser]);
+  }, [currentUser.email, currentUser.name]);
 
   if (!isOpen) return null;
 

@@ -292,7 +292,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
                   <img
                     src={s.userAvatar}
                     alt={s.userName}
-                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover grayscale ring-1 ring-[rgba(237,238,239,0.2)]"
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover ring-1 ring-[rgba(237,238,239,0.2)]"
                   />
                   <div>
                     <div className="flex items-center space-x-2">
@@ -326,7 +326,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
                   <img
                     src={s.photoUrl}
                     alt={s.speciesName}
-                    className="w-full h-full object-cover grayscale group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                   {s.isHotspotExclusive && (
                     <div className="absolute top-2.5 left-2.5 bg-[#0b0c0d]/90 text-amber-300 border border-amber-400/40 text-[10px] font-mono-code font-bold px-2 py-1 rounded backdrop-blur-md flex items-center space-x-1 uppercase">

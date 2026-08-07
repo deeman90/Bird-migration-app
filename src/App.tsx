@@ -194,7 +194,7 @@ export default function App() {
           .eq('user_id', authUserId);
 
         if (!error && count !== null) {
-          setCurrentUser((prev) => ({ ...prev, sightingsCount: count }));
+          setCurrentUser((prev) => (prev.sightingsCount === count ? prev : { ...prev, sightingsCount: count }));
           return;
         }
       }
@@ -204,7 +204,7 @@ export default function App() {
       const userSightings = sightings.filter(
         (s) => s.userId === activeUserId || (s.userName && s.userName.toLowerCase() === currentUser.name.toLowerCase())
       );
-      setCurrentUser((prev) => ({ ...prev, sightingsCount: userSightings.length }));
+      setCurrentUser((prev) => (prev.sightingsCount === userSightings.length ? prev : { ...prev, sightingsCount: userSightings.length }));
     }
 
     syncSightingsCount();

@@ -436,7 +436,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <img
                 src={avatar || currentUser.avatar}
                 alt={name || 'Profile Avatar'}
-                className="w-full h-full object-cover grayscale"
+                className="w-full h-full object-cover"
               />
             </div>
 
@@ -500,7 +500,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     <img
                       src={avatar || currentUser.avatar}
                       alt="Avatar Preview"
-                      className="w-20 h-20 rounded object-cover grayscale ring-1 ring-[#00ffaa] shrink-0"
+                      className="w-20 h-20 rounded object-cover ring-1 ring-[#00ffaa] shrink-0"
                     />
 
                     <div className="space-y-3 w-full">

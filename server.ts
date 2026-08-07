@@ -32,9 +32,195 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
+// Project Pause & Circuit Breaker State
+let isProjectPaused = false;
+let pauseReason = '';
+let pausedAt: string | null = null;
+
 // Health Check Endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
+  res.json({ status: 'ok', isPaused: isProjectPaused, time: new Date().toISOString() });
+});
+
+// Pause / Emergency Circuit Breaker Webhook Endpoints
+app.all(['/api/pause', '/api/webhook/pause'], (req, res) => {
+  const method = req.method;
+
+  if (method === 'GET') {
+    return res.json({
+      status: isProjectPaused ? 'paused' : 'active',
+      isPaused: isProjectPaused,
+      reason: pauseReason || null,
+      pausedAt: pausedAt || null,
+      webhookUrls: {
+        pause: '/api/pause',
+        unpause: '/api/unpause',
+        webhookPause: '/api/webhook/pause',
+      },
+    });
+  }
+
+  // POST / PUT / DELETE to trigger pause/toggle/resume
+  const { action, reason } = req.body || {};
+
+  if (action === 'resume' || action === 'unpause') {
+    isProjectPaused = false;
+    pauseReason = '';
+    pausedAt = null;
+    console.warn('[CIRCUIT BREAKER] Project UNPAUSED / RESUMED via webhook trigger.');
+    return res.json({
+      success: true,
+      status: 'active',
+      isPaused: false,
+      message: 'Project resumed successfully. All endpoints active.',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  isProjectPaused = true;
+  pauseReason = reason || (req.query.reason as string) || 'Routing maintenance, traffic anomaly, or loop mitigation';
+  pausedAt = new Date().toISOString();
+
+  console.warn(`[CIRCUIT BREAKER] Project PAUSED via webhook. Reason: ${pauseReason}`);
+
+  return res.json({
+    success: true,
+    status: 'paused',
+    isPaused: true,
+    message: 'Project has been paused successfully. All incoming non-admin traffic halted with 503 Maintenance Mode.',
+    pausedAt,
+    reason: pauseReason,
+    unpauseInstruction: 'Send POST to /api/unpause or POST to /api/pause with { "action": "resume" }',
+  });
+});
+
+app.post(['/api/unpause', '/api/webhook/unpause'], (req, res) => {
+  isProjectPaused = false;
+  pauseReason = '';
+  pausedAt = null;
+  console.warn('[CIRCUIT BREAKER] Project UNPAUSED via webhook.');
+  return res.json({
+    success: true,
+    status: 'active',
+    isPaused: false,
+    message: 'Project resumed successfully. All endpoints active.',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Global Circuit Breaker Middleware - Intercepts all traffic when project is paused
+app.use((req, res, next) => {
+  const allowedPaths = [
+    '/api/pause',
+    '/api/webhook/pause',
+    '/api/unpause',
+    '/api/webhook/unpause',
+    '/api/health',
+  ];
+
+  if (allowedPaths.includes(req.path)) {
+    return next();
+  }
+
+  if (isProjectPaused) {
+    if (req.accepts('html') && !req.path.startsWith('/api/')) {
+      return res.status(503).send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Project Paused | BMA</title>
+          <style>
+            body {
+              background-color: #0b0c0d;
+              color: #edeeef;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              margin: 0;
+              padding: 24px;
+            }
+            .card {
+              background: #14171a;
+              border: 1px solid rgba(0, 255, 170, 0.3);
+              border-radius: 16px;
+              padding: 40px;
+              max-width: 520px;
+              width: 100%;
+              text-align: center;
+              box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);
+            }
+            .badge {
+              display: inline-block;
+              background: rgba(239, 68, 68, 0.15);
+              color: #f87171;
+              border: 1px solid rgba(239, 68, 68, 0.3);
+              padding: 6px 16px;
+              border-radius: 9999px;
+              font-size: 12px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.08em;
+              margin-bottom: 24px;
+            }
+            .icon {
+              width: 56px;
+              height: 56px;
+              margin: 0 auto 20px;
+              color: #00ffaa;
+            }
+            h1 {
+              font-size: 26px;
+              margin: 0 0 12px;
+              color: #ffffff;
+              font-weight: 800;
+            }
+            p {
+              color: #9ca3af;
+              line-height: 1.6;
+              font-size: 15px;
+              margin: 0 0 24px;
+            }
+            .reason-box {
+              background: #0e1f18;
+              border: 1px solid rgba(0, 255, 170, 0.2);
+              color: #00ffaa;
+              padding: 14px;
+              border-radius: 8px;
+              font-family: monospace;
+              font-size: 13px;
+              text-align: left;
+              word-break: break-word;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="badge">Project Paused</div>
+            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <h1>Application Temporarily Paused</h1>
+            <p>This project has been paused via emergency webhook to perform routing maintenance or mitigate unexpected traffic loops.</p>
+            ${pauseReason ? `<div class="reason-box"><strong>Trigger Reason:</strong> ${pauseReason}</div>` : ''}
+          </div>
+        </body>
+        </html>
+      `);
+    }
+
+    return res.status(503).json({
+      error: 'Project is currently paused via webhook.',
+      status: 'paused',
+      reason: pauseReason || 'Emergency circuit breaker active.',
+      pausedAt,
+    });
+  }
+
+  next();
 });
 
 // Helper function to extract or fetch base64 image data
