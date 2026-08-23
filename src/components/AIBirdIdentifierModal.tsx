@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BirdSpecies } from '../types';
 import { uploadFileToSupabaseStorage } from '../services/storageService.js';
+import { optimizeImageForApi } from '../utils/imageOptimizer';
 import { Camera, Sparkles, CheckCircle2, AlertCircle, RefreshCw, ArrowRight, ShieldCheck, Tag, Info, Search } from 'lucide-react';
 
 interface AIBirdIdentifierModalProps {
@@ -101,12 +102,15 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
         scientificName: s.scientificName,
       }));
 
+      const optimizedPhoto = await optimizeImageForApi(imageToAnalyze, 1280, 0.85);
+      const isRemote = typeof imageToAnalyze === 'string' && imageToAnalyze.startsWith('http') && !imageToAnalyze.startsWith('blob:') && !imageToAnalyze.includes('localhost:');
+
       const response = await fetch('/api/identify-bird', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          photoUrl: imageToAnalyze.startsWith('http') ? imageToAnalyze : undefined,
-          base64Image: imageToAnalyze.startsWith('data:') ? imageToAnalyze : undefined,
+          photoUrl: isRemote ? imageToAnalyze : undefined,
+          base64Image: optimizedPhoto.startsWith('data:') ? optimizedPhoto : undefined,
           appSpeciesList,
         }),
       });
