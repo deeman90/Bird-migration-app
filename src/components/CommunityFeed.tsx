@@ -335,6 +335,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
                     </div>
                   )}
 
+                  {(s.isRareSpecies || s.rareBonusEarned) && (
+                    <div className="absolute top-2.5 right-2.5 bg-amber-950/90 text-amber-300 border border-amber-400/60 text-[10px] font-mono-code font-bold px-2 py-1 rounded backdrop-blur-md flex items-center space-x-1 uppercase shadow-lg animate-pulse">
+                      <Sparkles className="w-3 h-3 text-amber-400" />
+                      <span>🚨 Rare / Extinct Specie (+50 Pts)</span>
+                    </div>
+                  )}
+
                   <div className="absolute bottom-2.5 left-2.5 bg-[#0b0c0d]/90 backdrop-blur-md text-[#edeeef] text-[10px] font-mono-code uppercase px-2 py-1 rounded border border-[rgba(237,238,239,0.15)]">
                     Flock Count: <span className="text-[#00ffaa] font-bold">{s.flockCount}</span>
                   </div>
@@ -362,8 +369,20 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
                       <div className="p-1.5 rounded bg-[#0b0c0d] border border-[rgba(237,238,239,0.1)]">
                         Device: <strong className="text-[#edeeef]">{s.deviceType || s.imageMetaData?.deviceModel || 'Smartphone Camera'}</strong>
                       </div>
-                      <div className="p-1.5 rounded bg-[#0b0c0d] border border-[rgba(237,238,239,0.1)]">
-                        Log Impact: <strong className="text-[#00ffaa]">+{s.pointsEarned || 100} pts (Log #{s.userSightingsCount || 1})</strong>
+                      <div className="p-1.5 rounded bg-[#0b0c0d] border border-[rgba(237,238,239,0.1)] flex flex-wrap items-center justify-between gap-1">
+                        <span>Log Impact: <strong className="text-[#00ffaa]">+{s.pointsEarned || 100} pts (Log #{s.userSightingsCount || 1})</strong></span>
+                        <div className="flex items-center gap-1">
+                          {(s.imageMetaData?.qualityBonus || s.imageMetaData?.isGoodQuality) && (
+                            <span className="text-[10px] text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-400/30 font-mono-code font-bold">
+                              📸 +10 Quality
+                            </span>
+                          )}
+                          {(s.isRareSpecies || s.rareBonusEarned) && (
+                            <span className="text-[10px] text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-400/30 font-mono-code font-bold">
+                              🚨 +50 Rare Bonus
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 

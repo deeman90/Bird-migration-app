@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { BirdSpecies, Sighting, SightingBehavior, User, ImageMetaData } from '../types';
+import { BirdSpecies, Sighting, SightingBehavior, User, ImageMetaData, isRareOrExtinctSpecies } from '../types';
 import { extractImageExif, ExtractedExifData } from '../utils/exifParser';
 import { uploadSightingPhotoToSupabase } from '../services/sightingsService';
 import { computeImageHash, checkDuplicateImage } from '../utils/imageHasher';
@@ -84,7 +84,21 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     conservationStatus: string;
     description: string;
     funFact: string;
+    birdsLeftToRight?: Array<{
+      positionLabel: string;
+      commonName: string;
+      scientificName: string;
+      confidenceScore: number;
+      distinguishingFeature?: string;
+    }>;
   } | null>(null);
+
+  // Derived rare species detection
+  const selectedSpeciesObj = speciesList.find((s) => s.id === selectedSpeciesId);
+  const currentConservationStatus = selectedSpeciesObj?.conservationStatus || aiResult?.conservationStatus || '';
+  const currentCommonName = (useCustomSpecies ? customSpeciesName : selectedSpeciesObj?.commonName) || aiResult?.commonName || '';
+  const currentScientificName = selectedSpeciesObj?.scientificName || aiResult?.scientificName || '';
+  const isRareDetected = isRareOrExtinctSpecies(currentConservationStatus, currentCommonName, currentScientificName);
 
   // Check if account is restricted
   const isRestricted = Boolean(
@@ -161,8 +175,14 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       }
 
       const markings = (data.diagnosticFeatures || []).join(', ');
+      let leftToRightNotes = '';
+      if (data.birdsLeftToRight && data.birdsLeftToRight.length > 0) {
+        leftToRightNotes = `\n[Identified Birds Left → Right]: ` +
+          data.birdsLeftToRight.map((b: any) => `${b.positionLabel}: ${b.commonName} (${b.scientificName})`).join(' | ');
+      }
+
       setNotes(
-        `[AI Vision Verified ${data.confidenceScore}%]: ${data.description || ''} Diagnostic markings: ${markings}. ${
+        `[AI Vision Verified ${data.confidenceScore}%]: ${data.description || ''} Diagnostic markings: ${markings}.${leftToRightNotes} ${
           data.funFact ? `Fact: ${data.funFact}` : ''
         }`
       );
@@ -354,6 +374,25 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
         // Compute SHA-256 image hash for duplicate tracking
         const calculatedHash = await computeImageHash(currentImageFile || photoUrl || previewImage);
 
+        // Compute quality bonus points (default +10 for clear, genuine field photo)
+        const qualityBonus = authData.qualityBonus !== undefined 
+          ? authData.qualityBonus 
+          : (authData.isGoodQuality !== false ? 10 : 0);
+
+        let speciesObj = speciesList.find((sp) => sp.id === selectedSpeciesId);
+        let nameToUse = speciesObj ? speciesObj.commonName : 'Migratory Bird';
+        let sciNameToUse = speciesObj ? speciesObj.scientificName : 'Aves spp.';
+
+        if (useCustomSpecies && customSpeciesName.trim()) {
+          nameToUse = customSpeciesName.trim();
+          sciNameToUse = 'Unclassified Migrant';
+        }
+
+        const conservationStatusToUse = speciesObj?.conservationStatus || aiResult?.conservationStatus || '';
+        const isRare = isRareOrExtinctSpecies(conservationStatusToUse, nameToUse, sciNameToUse);
+        const rareBonus = isRare ? 50 : 0;
+        const totalPointsEarned = 100 + qualityBonus + rareBonus;
+
         // Genuine field photo -> Build sighting object with ImageMetaData
         const imageMetaData: ImageMetaData = {
           isGenuinePhoto: true,
@@ -365,16 +404,11 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
           authenticityStatus: 'authentic_camera_photo',
           confidenceScore: authData.confidenceScore || 98,
           imageHash: calculatedHash,
+          imageQualityScore: authData.imageQualityScore || 88,
+          isGoodQuality: authData.isGoodQuality ?? true,
+          qualityBonus: qualityBonus,
+          qualityNotes: authData.qualityNotes || 'Good quality image capture (+10 Bonus Points awarded)',
         };
-
-        let speciesObj = speciesList.find((sp) => sp.id === selectedSpeciesId);
-        let nameToUse = speciesObj ? speciesObj.commonName : 'Migratory Bird';
-        let sciNameToUse = speciesObj ? speciesObj.scientificName : 'Aves spp.';
-
-        if (useCustomSpecies && customSpeciesName.trim()) {
-          nameToUse = customSpeciesName.trim();
-          sciNameToUse = 'Unclassified Migrant';
-        }
 
         const newSighting: Sighting = {
           id: `sg_${Date.now()}`,
@@ -402,8 +436,10 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
           imageMetaData,
           imageHash: calculatedHash,
           deviceType: deviceType || clientExif?.model || 'Mobile Smartphone Camera',
-          pointsEarned: 100,
+          pointsEarned: totalPointsEarned,
           userSightingsCount: (currentUser.sightingsCount || 0) + 1,
+          isRareSpecies: isRare,
+          rareBonusEarned: rareBonus,
         };
 
         onAddSighting(newSighting);
@@ -484,9 +520,19 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
             </div>
           </div>
 
-          <div className="self-start sm:self-auto flex items-center space-x-2 bg-[#00ffaa]/10 border border-[#00ffaa]/30 px-3 py-1.5 rounded text-[#00ffaa] font-mono-code text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5 animate-spin" />
-            <span>+100 Points</span>
+          <div className="self-start sm:self-auto flex flex-wrap items-center gap-2">
+            <div className="flex items-center space-x-2 bg-[#00ffaa]/10 border border-[#00ffaa]/30 px-3 py-1.5 rounded text-[#00ffaa] font-mono-code text-xs font-semibold uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5 animate-spin text-[#00ffaa]" />
+              <span>+100 Base Pts</span>
+            </div>
+            <div className="flex items-center space-x-1.5 bg-cyan-500/10 border border-cyan-400/40 px-2.5 py-1.5 rounded text-cyan-400 font-mono-code text-xs font-bold uppercase tracking-wider">
+              <span>📸 +10 Quality Bonus</span>
+            </div>
+            {isRareDetected && (
+              <div className="flex items-center space-x-1.5 bg-amber-500/15 border border-amber-400/60 px-2.5 py-1.5 rounded text-amber-300 font-mono-code text-xs font-bold uppercase tracking-wider animate-pulse">
+                <span>🚨 +50 Rare Bird Bonus 🏆</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -825,6 +871,31 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
                     ))}
                   </div>
                 )}
+
+                {/* Left to Right Birds Breakdown */}
+                {aiResult.birdsLeftToRight && aiResult.birdsLeftToRight.length > 0 && (
+                  <div className="bg-[#0b0c0d] p-2.5 rounded border border-[#00ffaa]/30 space-y-2 mt-2">
+                    <span className="font-mono-code text-[10px] text-[#00ffaa] font-bold uppercase tracking-wider block">
+                      Birds & Species Identified (Left → Right):
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {aiResult.birdsLeftToRight.map((bird, idx) => (
+                        <div key={idx} className="bg-[rgba(237,238,239,0.05)] border border-[rgba(237,238,239,0.1)] p-2 rounded text-xs flex flex-col justify-between">
+                          <div className="flex items-center justify-between">
+                            <span className="bg-[#00ffaa]/20 text-[#00ffaa] text-[9px] font-mono-code font-bold px-1.5 py-0.2 rounded border border-[#00ffaa]/30">
+                              📍 {bird.positionLabel}
+                            </span>
+                            <span className="text-[9px] font-mono-code text-[#edeeef]/60">
+                              {bird.confidenceScore}%
+                            </span>
+                          </div>
+                          <span className="font-syne font-bold text-xs text-[#edeeef] mt-1">{bird.commonName}</span>
+                          <span className="font-mono-code text-[10px] text-[#edeeef]/50 italic">{bird.scientificName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -863,7 +934,16 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
             <div className="flex items-center space-x-2">
               <Sparkles className="w-4 h-4 text-[#00ffaa] animate-bounce" />
               <span>
-                Record Impact: <strong>+100 Points</strong> will be credited to your account profile!
+                Record Impact: <strong>+100 Base Pts</strong> + <strong className="text-cyan-300">📸 +10 Quality Bonus</strong>
+                {isRareDetected ? (
+                  <span className="text-amber-300 font-bold ml-1">
+                    + 🚨 <strong>+50 RARE SPECIES BONUS</strong> = <strong>+160 PTS TOTAL</strong>! 🎖️ Badge Unlocked: <strong>Rare Species Finder 🦅</strong>
+                  </span>
+                ) : (
+                  <span className="ml-1">
+                    = <strong>+110 PTS Total</strong>
+                  </span>
+                )}
               </span>
             </div>
             <div className="flex items-center space-x-2">

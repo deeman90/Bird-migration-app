@@ -68,11 +68,11 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionR
 }
 
 /**
-  Upsert/Create subscription record in Supabase.
+  Upsert/Create subscription record in Supabase without requiring ON CONFLICT constraint on user_id.
  */
 export async function saveUserSubscription(sub: SubscriptionRecord): Promise<SubscriptionRecord | null> {
   try {
-    const row = {
+    const row: Record<string, any> = {
       user_id: sub.userId,
       tier_plan: sub.tierPlan,
       amount: sub.amount,
@@ -87,13 +87,43 @@ export async function saveUserSubscription(sub: SubscriptionRecord): Promise<Sub
       current_period_start: sub.currentPeriodStart || new Date().toISOString(),
       current_period_end: sub.currentPeriodEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       cancel_at_period_end: sub.cancelAtPeriodEnd ?? false,
+      updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
+    // 1. Check if user already has an existing subscription record
+    const { data: existing } = await supabase
       .from('subscriptions')
-      .upsert([row], { onConflict: 'user_id' })
-      .select()
-      .single();
+      .select('id')
+      .eq('user_id', sub.userId)
+      .limit(1)
+      .maybeSingle();
+
+    let data;
+    let error;
+
+    if (existing?.id) {
+      // Update existing record using Primary Key ID
+      const res = await supabase
+        .from('subscriptions')
+        .update(row)
+        .eq('id', existing.id)
+        .select()
+        .single();
+      data = res.data;
+      error = res.error;
+    } else {
+      // Insert new record
+      if (sub.id) {
+        row.id = sub.id;
+      }
+      const res = await supabase
+        .from('subscriptions')
+        .insert([row])
+        .select()
+        .single();
+      data = res.data;
+      error = res.error;
+    }
 
     if (error) {
       console.error('[Supabase Subscription] Error saving subscription:', error.message);

@@ -49,6 +49,13 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
     conservationStatus: string;
     description: string;
     funFact: string;
+    birdsLeftToRight?: Array<{
+      positionLabel: string;
+      commonName: string;
+      scientificName: string;
+      confidenceScore: number;
+      distinguishingFeature?: string;
+    }>;
   } | null>(null);
 
   if (!isOpen) return null;
@@ -121,14 +128,21 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
 
   const handleApplyToSighting = () => {
     if (!aiResult) return;
+
+    let leftToRightNotes = '';
+    if (aiResult.birdsLeftToRight && aiResult.birdsLeftToRight.length > 0) {
+      leftToRightNotes = `\n[Identified Birds Left → Right]: ` +
+        aiResult.birdsLeftToRight.map(b => `${b.positionLabel}: ${b.commonName} (${b.scientificName}, ${b.confidenceScore}%)`).join(' | ');
+    }
+
     onSelectForSighting({
       speciesName: aiResult.commonName,
       scientificName: aiResult.scientificName,
       matchedSpeciesId: aiResult.matchedSpeciesId || undefined,
       photoUrl: customPhotoInput.trim() || photoUrl,
-      flockCount: aiResult.suggestedFlockCount || 1,
+      flockCount: aiResult.suggestedFlockCount || (aiResult.birdsLeftToRight?.length ?? 1),
       behavior: aiResult.suggestedBehavior || 'flying',
-      notes: `AI Identification (${aiResult.confidenceScore}% confidence): ${aiResult.description}. Key markings: ${aiResult.diagnosticFeatures.join(', ')}. Fun Fact: ${aiResult.funFact}`,
+      notes: `AI Identification (${aiResult.confidenceScore}% confidence): ${aiResult.description}. Key markings: ${aiResult.diagnosticFeatures.join(', ')}.${leftToRightNotes} Fun Fact: ${aiResult.funFact}`,
     });
     onClose();
   };
@@ -323,6 +337,52 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
                   ))}
                 </div>
               </div>
+
+              {/* Multi-Bird Identification (Left to Right) Section */}
+              {aiResult.birdsLeftToRight && aiResult.birdsLeftToRight.length > 0 && (
+                <div className="bg-[#0b0c0d]/90 border border-[#00ffaa]/40 rounded-lg p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono-code text-[11px] text-[#00ffaa] font-bold uppercase tracking-wider flex items-center space-x-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#00ffaa]" />
+                      <span>Identified Birds & Species in Photo (Left → Right):</span>
+                    </span>
+                    <span className="bg-[#00ffaa]/10 text-[#00ffaa] text-[10px] font-mono-code px-2 py-0.5 rounded border border-[#00ffaa]/30">
+                      {aiResult.birdsLeftToRight.length} Bird{aiResult.birdsLeftToRight.length > 1 ? 's' : ''} Detected
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {aiResult.birdsLeftToRight.map((bird, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-[rgba(237,238,239,0.04)] border border-[rgba(237,238,239,0.12)] hover:border-[#00ffaa]/50 p-2.5 rounded transition-all flex flex-col justify-between"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="bg-[#00ffaa]/20 text-[#00ffaa] font-mono-code text-[10px] font-bold px-2 py-0.5 rounded border border-[#00ffaa]/40">
+                            📍 {bird.positionLabel || `Bird #${idx + 1}`}
+                          </span>
+                          <span className="text-[10px] font-mono-code text-[#edeeef]/60">
+                            {bird.confidenceScore}% Confidence
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-syne font-bold text-sm text-[#edeeef] line-clamp-1">
+                            {bird.commonName}
+                          </p>
+                          <p className="font-mono-code text-[11px] text-[#edeeef]/50 italic">
+                            {bird.scientificName}
+                          </p>
+                        </div>
+                        {bird.distinguishingFeature && (
+                          <p className="mt-1.5 text-[10px] font-mono-code text-[#00ffaa]/80 bg-[#00ffaa]/5 px-1.5 py-0.5 rounded border border-[#00ffaa]/10">
+                            Key feature: {bird.distinguishingFeature}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Behavior & Conservation Info */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#0b0c0d] p-3 rounded border border-[rgba(237,238,239,0.1)] font-mono-code text-xs">

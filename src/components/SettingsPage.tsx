@@ -23,9 +23,9 @@ import {
   Link,
   Info,
   CheckCircle2,
+  Award,
   Sliders,
   Compass,
-  Award,
   ChevronRight,
   LogOut,
   Gift,
@@ -1160,6 +1160,23 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     <p className="text-[11px] text-slate-400">Badges Unlocked</p>
                   </div>
                 </div>
+
+                {currentUser.badges && currentUser.badges.length > 0 && (
+                  <div className="p-4 rounded-xl bg-slate-950/80 border border-purple-900/40 space-y-2">
+                    <p className="text-xs font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Award className="w-4 h-4 text-purple-400" />
+                      <span>Unlocked Observer Badges:</span>
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {currentUser.badges.map((b, i) => (
+                        <span key={i} className="px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/40 text-purple-200 text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+                          <Sparkles className="w-3 h-3 text-amber-400" />
+                          {b}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Supabase Storage RLS Security Roles Section */}
                 <div className="p-6 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">

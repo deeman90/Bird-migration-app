@@ -54,7 +54,7 @@ export interface BirdSpecies {
   commonName: string;
   scientificName: string;
   category: string;
-  conservationStatus: 'Least Concern' | 'Near Threatened' | 'Vulnerable' | 'Endangered' | 'Critically Endangered';
+  conservationStatus: 'Least Concern' | 'Near Threatened' | 'Vulnerable' | 'Endangered' | 'Critically Endangered' | 'Extinct in the Wild' | 'Extinct';
   image: string;
   flywayRegion: string;
   description: string;
@@ -84,6 +84,10 @@ export interface ImageMetaData {
   failureReason?: string;
   confidenceScore?: number;
   imageHash?: string;
+  imageQualityScore?: number;
+  isGoodQuality?: boolean;
+  qualityBonus?: number;
+  qualityNotes?: string;
 }
 
 export interface Sighting {
@@ -116,6 +120,57 @@ export interface Sighting {
   pointsEarned?: number;
   userSightingsCount?: number;
   imageHash?: string;
+  isRareSpecies?: boolean;
+  rareBonusEarned?: number;
+}
+
+export function isRareOrExtinctSpecies(
+  conservationStatus?: string,
+  commonName?: string,
+  scientificName?: string
+): boolean {
+  if (!conservationStatus && !commonName && !scientificName) return false;
+
+  const status = (conservationStatus || '').toLowerCase();
+  const name = (commonName || '').toLowerCase();
+  const sciName = (scientificName || '').toLowerCase();
+
+  const rareStatuses = [
+    'vulnerable',
+    'endangered',
+    'critically endangered',
+    'extinct',
+    'extinct in the wild',
+    'near threatened',
+    'rare',
+    'threatened'
+  ];
+  if (rareStatuses.some((s) => status.includes(s))) {
+    return true;
+  }
+
+  const rareKeywords = [
+    'condor',
+    'whooping crane',
+    'ivory-billed',
+    'spoon-billed',
+    'spix',
+    'macaw',
+    'passenger pigeon',
+    'dodo',
+    'great auk',
+    'kakapo',
+    'philippine eagle',
+    'extinct',
+    'endangered',
+    'rare',
+    'albatross'
+  ];
+  if (rareKeywords.some((k) => name.includes(k) || sciName.includes(k))) {
+    return true;
+  }
+
+  return false;
 }
 
 export interface RoutePoint {

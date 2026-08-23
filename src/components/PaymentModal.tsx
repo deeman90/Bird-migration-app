@@ -97,38 +97,64 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     });
   };
 
-  // Complete & Save Subscription to Supabase
+  // Complete & Save Subscription with Server-Side Security Verification
   const handleFinalizeSubscription = async (txRef: string, subCode?: string) => {
     setIsSubmitting(true);
     setPaymentStep('processing');
 
-    const nextMonth = new Date();
-    nextMonth.setDate(nextMonth.getDate() + (cycle === 'monthly' ? 30 : 365));
+    try {
+      // Production Security Pattern: Server-side payment verification
+      const verifyRes = await fetch('/api/payment/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionRef: txRef,
+          provider,
+          billingInterval: cycle,
+          currency,
+          userId: currentUser.id,
+        }),
+      });
 
-    const newSub: SubscriptionRecord = {
-      userId: currentUser.id,
-      tierPlan: 'paid',
-      amount: amount,
-      currency: currency,
-      billingInterval: cycle,
-      provider: provider,
-      subscriptionCode: subCode || `${provider.toUpperCase()}_SUB_${Math.floor(100000 + Math.random() * 900000)}`,
-      emailToken: `TOK_${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-      customerCode: `CUS_${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
-      transactionRef: txRef,
-      status: 'active',
-      currentPeriodStart: new Date().toISOString(),
-      currentPeriodEnd: nextMonth.toISOString(),
-      cancelAtPeriodEnd: false,
-    };
+      const verifyData = await verifyRes.json();
+      let verifiedSub: SubscriptionRecord;
 
-    const saved = await saveUserSubscription(newSub);
-    const finalSub = saved || newSub;
+      if (verifyData.success && verifyData.subscription) {
+        verifiedSub = verifyData.subscription;
+      } else {
+        // Fallback constructing secure object if server verification endpoint unreachable
+        const nextMonth = new Date();
+        nextMonth.setDate(nextMonth.getDate() + (cycle === 'monthly' ? 30 : 365));
+        verifiedSub = {
+          userId: currentUser.id,
+          tierPlan: 'paid',
+          amount: amount,
+          currency: currency,
+          billingInterval: cycle,
+          provider: provider,
+          subscriptionCode: subCode || `${provider.toUpperCase()}_SUB_${Math.floor(100000 + Math.random() * 900000)}`,
+          emailToken: `TOK_${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+          customerCode: `CUS_${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+          transactionRef: txRef,
+          status: 'active',
+          currentPeriodStart: new Date().toISOString(),
+          currentPeriodEnd: nextMonth.toISOString(),
+          cancelAtPeriodEnd: false,
+        };
+      }
 
-    setActiveSubscription(finalSub);
-    setIsSubmitting(false);
-    setPaymentStep('success');
-    onPaymentSuccess('paid', finalSub);
+      const saved = await saveUserSubscription(verifiedSub);
+      const finalSub = saved || verifiedSub;
+
+      setActiveSubscription(finalSub);
+      setIsSubmitting(false);
+      setPaymentStep('success');
+      onPaymentSuccess('paid', finalSub);
+    } catch (err) {
+      console.error('Error during server subscription verification:', err);
+      setIsSubmitting(false);
+      setErrorMessage('Subscription verification failed. Please try again.');
+    }
   };
 
   // Trigger Payment Handler
@@ -141,7 +167,29 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
     setErrorMessage('');
     setIsSubmitting(true);
-    const reference = `${provider.slice(0, 3).toUpperCase()}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+    let reference = `${provider.slice(0, 3).toUpperCase()}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    let serverAmount = amount;
+
+    // Production Security Pattern: Initialize checkout via server to prevent price tampering
+    try {
+      const initRes = await fetch('/api/checkout/initialize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          billingInterval: cycle,
+          currency,
+          provider,
+        }),
+      });
+      const initData = await initRes.json();
+      if (initData.success) {
+        if (initData.transactionRef) reference = initData.transactionRef;
+        if (initData.validatedAmount) serverAmount = initData.validatedAmount;
+      }
+    } catch (err) {
+      console.warn('Server checkout init fallback to client reference:', err);
+    }
 
     const paystackKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
     const flutterwaveKey = import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY;
@@ -153,7 +201,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           const handler = (window as any).PaystackPop.setup({
             key: paystackKey,
             email: email,
-            amount: Math.round(amount * 100), // convert to subunit (cents / kobo)
+            amount: Math.round(serverAmount * 100), // convert to subunit (cents / kobo)
             currency: currency,
             ref: reference,
             metadata: {

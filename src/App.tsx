@@ -241,11 +241,22 @@ export default function App() {
       }
     });
 
-    // Update User Stats & Points
+    // Update User Stats, Points & Badges
+    const pointsAwarded = newSighting.pointsEarned !== undefined ? newSighting.pointsEarned : 100;
+    const isRare = newSighting.isRareSpecies || false;
+
+    const RARE_BADGE = 'Rare Species Finder 🦅';
+    let currentBadges = currentUser.badges || [];
+    if (isRare && !currentBadges.includes(RARE_BADGE)) {
+      currentBadges = [...currentBadges, RARE_BADGE];
+    }
+
     const updatedUser: User = {
       ...currentUser,
       sightingsCount: currentUser.sightingsCount + 1,
-      points: currentUser.points + 100,
+      rareSpeciesCount: isRare ? (currentUser.rareSpeciesCount || 0) + 1 : currentUser.rareSpeciesCount,
+      points: (currentUser.points || 0) + pointsAwarded,
+      badges: currentBadges,
     };
     setCurrentUser(updatedUser);
 
@@ -263,7 +274,11 @@ export default function App() {
     setIsPickerMode(false);
     setPickedCoords(null);
 
-    showToast(`✓ Logged sighting for ${newSighting.speciesName}! +100 Points added.`, 'success');
+    if (isRare) {
+      showToast(`🚨 RARE / EXTINCT SPECIES RECORDED! +${pointsAwarded} Points & 'Rare Species Finder 🦅' Badge Awarded!`, 'pro');
+    } else {
+      showToast(`✓ Logged sighting for ${newSighting.speciesName}! +${pointsAwarded} Points added.`, 'success');
+    }
     setActiveTab('map');
   };
 

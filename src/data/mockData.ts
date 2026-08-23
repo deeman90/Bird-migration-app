@@ -140,6 +140,66 @@ export const BIRD_SPECIES_LIST: BirdSpecies[] = [
     description: 'Smallest migratory marvel that flies non-stop 800 km across the Gulf of Mexico in 18 to 22 hours.',
     averageFlockSize: 'Solitary migratory fliers',
     wingspanCm: 11
+  },
+  {
+    id: 'sp_california_condor',
+    commonName: 'California Condor',
+    scientificName: 'Gymnogyps californianus',
+    category: 'Raptor / Rare Giant',
+    conservationStatus: 'Critically Endangered',
+    image: 'https://images.unsplash.com/photo-1543549036-ed4571d871bd?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'Pacific Flyway / Western Mountains',
+    description: 'The largest wild land bird in North America with a massive 3-meter wingspan, surviving through intensive sanctuary breeding & reintroduction.',
+    averageFlockSize: 'Solitary or pairs',
+    wingspanCm: 300
+  },
+  {
+    id: 'sp_whooping_crane',
+    commonName: 'Whooping Crane',
+    scientificName: 'Grus americana',
+    category: 'Crane / Rare Wader',
+    conservationStatus: 'Endangered',
+    image: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'Central Flyway (Canada to Texas Coast)',
+    description: 'North America’s tallest flying bird, famed for ultralight-guided migrations and vocal trumpet calls. Highly rare and protected.',
+    averageFlockSize: 'Small family groups (2 - 8 birds)',
+    wingspanCm: 230
+  },
+  {
+    id: 'sp_spix_macaw',
+    commonName: 'Spix’s Macaw (Little Blue Macaw)',
+    scientificName: 'Cyanopsitta spixii',
+    category: 'Parrot / Extinct in Wild',
+    conservationStatus: 'Extinct in the Wild',
+    image: 'https://images.unsplash.com/photo-1552728089-57bdde30beb3?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'Neotropical / Caatinga Gallery Forests',
+    description: 'Stunning cobalt-blue species formerly native to Brazil, now surviving solely in conservation sanctuaries with active rewilding projects.',
+    averageFlockSize: 'Reintroduced pairs',
+    wingspanCm: 120
+  },
+  {
+    id: 'sp_spoon_billed_sandpiper',
+    commonName: 'Spoon-billed Sandpiper',
+    scientificName: 'Calidris pygmaea',
+    category: 'Shorebird / Ultra-Rare',
+    conservationStatus: 'Critically Endangered',
+    image: 'https://images.unsplash.com/photo-1618172193763-c511deb635ca?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'East Asian-Australasian Flyway',
+    description: 'Famous for its unique spatulate bill used to sweep intertidal mudflats. Extremely rare with under 500 individuals remaining.',
+    averageFlockSize: '1 - 5 in mixed shorebird flocks',
+    wingspanCm: 38
+  },
+  {
+    id: 'sp_passenger_pigeon',
+    commonName: 'Passenger Pigeon',
+    scientificName: 'Ectopistes migratorius',
+    category: 'Historical Extinct Species',
+    conservationStatus: 'Extinct',
+    image: 'https://images.unsplash.com/photo-1551085254-e96b210df58a?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'Eastern North American Woodlands',
+    description: 'Once billions strong in dark migratory flocks, now a historical emblem of conservation awareness.',
+    averageFlockSize: 'Historical mega-flocks',
+    wingspanCm: 60
   }
 ];
 
