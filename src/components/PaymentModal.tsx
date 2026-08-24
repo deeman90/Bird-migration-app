@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { User } from '../types.js';
 import { saveUserSubscription, SubscriptionRecord } from '../services/subscriptionService.js';
+import { safeFetchJson } from '../utils/apiClient';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -104,7 +105,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
     try {
       // Production Security Pattern: Server-side payment verification
-      const verifyRes = await fetch('/api/payment/verify', {
+      const verifyData = await safeFetchJson('/api/payment/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -116,7 +117,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         }),
       });
 
-      const verifyData = await verifyRes.json();
       let verifiedSub: SubscriptionRecord;
 
       if (verifyData.success && verifyData.subscription) {
@@ -173,7 +173,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
     // Production Security Pattern: Initialize checkout via server to prevent price tampering
     try {
-      const initRes = await fetch('/api/checkout/initialize', {
+      const initData = await safeFetchJson('/api/checkout/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -182,7 +182,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           provider,
         }),
       });
-      const initData = await initRes.json();
       if (initData.success) {
         if (initData.transactionRef) reference = initData.transactionRef;
         if (initData.validatedAmount) serverAmount = initData.validatedAmount;

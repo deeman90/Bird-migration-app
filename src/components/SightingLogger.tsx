@@ -5,6 +5,7 @@ import { extractImageExif, ExtractedExifData } from '../utils/exifParser';
 import { uploadSightingPhotoToSupabase } from '../services/sightingsService';
 import { computeImageHash, checkDuplicateImage } from '../utils/imageHasher';
 import { optimizeImageForApi } from '../utils/imageOptimizer';
+import { safeFetchJson } from '../utils/apiClient';
 import { Camera, MapPin, Upload, Navigation, CheckCircle2, AlertCircle, Sparkles, Plus, Image as ImageIcon, Crosshair, RefreshCw, Tag, ShieldCheck, Search, ShieldAlert, AlertTriangle, Smartphone } from 'lucide-react';
 
 interface SightingLoggerProps {
@@ -143,7 +144,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       const optimizedPhoto = await optimizeImageForApi(targetPhoto, 1280, 0.85);
       const isRemote = typeof targetPhoto === 'string' && targetPhoto.startsWith('http') && !targetPhoto.startsWith('blob:') && !targetPhoto.includes('localhost:');
 
-      const response = await fetch('/api/identify-bird', {
+      const json = await safeFetchJson('/api/identify-bird', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -153,8 +154,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
         }),
       });
 
-      const json = await response.json();
-      if (!json.success) {
+      if (!json.success || !json.data) {
         throw new Error(json.error || 'AI Identification failed.');
       }
 
@@ -351,7 +351,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
 
       const isRemoteUrl = typeof photoUrl === 'string' && photoUrl.startsWith('http') && !photoUrl.startsWith('blob:') && !photoUrl.includes('localhost:');
 
-      const response = await fetch('/api/verify-image-authenticity', {
+      const json = await safeFetchJson('/api/verify-image-authenticity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -361,15 +361,12 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
         }),
       });
 
-      if (response.ok) {
-        const json = await response.json();
-        if (json.data) {
-          authData = json.data;
-        } else if (json.noImageDetected && json.error) {
-          setIsVerifyingPhoto(false);
-          setLoggerError(json.error);
-          return;
-        }
+      if (json.data) {
+        authData = json.data;
+      } else if (json.noImageDetected && json.error) {
+        setIsVerifyingPhoto(false);
+        setLoggerError(json.error);
+        return;
       }
     } catch (err: any) {
       console.warn('Backend authenticity check notice (network unreachable), validating via local EXIF device data:', err);
