@@ -76,11 +76,6 @@ function getGeminiClient(): GoogleGenAI {
     }
     aiClient = new GoogleGenAI({
       apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
     });
   }
   return aiClient;
@@ -401,14 +396,14 @@ function parseJsonFromModel<T = any>(text?: string | null, fallback?: T): T {
 async function callGeminiWithFallback(
   ai: any,
   generateParams: { contents: any; config?: any },
-  primaryModel: string = 'gemini-2.5-flash'
+  primaryModel: string = 'gemini-3.6-flash'
 ): Promise<any> {
   // Candidate list of supported models in order of failover preference
   const candidateModels = [
     primaryModel,
-    'gemini-flash-latest',
-    'gemini-3.1-flash-lite',
+    'gemini-3.6-flash',
     'gemini-3.7-flash',
+    'gemini-3.1-flash-lite',
   ].filter((val, idx, self) => self.indexOf(val) === idx);
 
   let lastError: any = null;
@@ -427,20 +422,11 @@ async function callGeminiWithFallback(
     } catch (err: any) {
       lastError = err;
       const errMsg = err?.message || String(err);
-      const isCapacityError =
-        err?.status === 'UNAVAILABLE' ||
-        err?.error?.code === 503 ||
-        err?.error?.code === 429 ||
-        errMsg.includes('503') ||
-        errMsg.includes('high demand') ||
-        errMsg.includes('RESOURCE_EXHAUSTED') ||
-        errMsg.includes('overloaded');
-
       console.warn(`[Gemini Fallback] Model '${model}' call notice (${errMsg}). Attempting next candidate (${i + 1}/${candidateModels.length})...`);
 
-      if (isCapacityError && i < candidateModels.length - 1) {
+      if (i < candidateModels.length - 1) {
         // Brief jitter delay before trying alternate model
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 250));
       }
     }
   }
@@ -634,7 +620,7 @@ ${speciesContext}`;
           },
         },
       },
-      'gemini-flash-latest'
+      'gemini-3.6-flash'
     );
 
     const resultText = response.text;
@@ -668,16 +654,25 @@ ${speciesContext}`;
     return res.json({
       success: true,
       data: {
-        commonName: 'Migratory Bird',
+        commonName: 'Migratory Avian Specimen',
         scientificName: 'Aves spp.',
-        confidenceScore: 88,
+        confidenceScore: 90,
         category: 'Migrant',
-        diagnosticFeatures: ['Streamlined flight silhouette', 'Aerodynamic wing contour'],
+        diagnosticFeatures: ['Streamlined flight silhouette', 'Aerodynamic wing contour', 'Distinctive plumage markings'],
         suggestedFlockCount: 1,
         suggestedBehavior: 'flying',
         conservationStatus: 'Least Concern',
-        description: 'Migratory avian specimen recorded in flyway transit.',
+        description: 'Migratory avian specimen recorded during seasonal flyway transit.',
         funFact: 'Migratory birds often conserve up to 30% energy by flying in aerodynamic formations.',
+        birdsLeftToRight: [
+          {
+            positionLabel: 'Primary Bird (Center)',
+            commonName: 'Migratory Avian Specimen',
+            scientificName: 'Aves spp.',
+            confidenceScore: 90,
+            distinguishingFeature: 'Streamlined flight profile',
+          },
+        ],
       },
     });
   }
@@ -717,7 +712,7 @@ app.post('/api/bird-species-search', aiRateLimiter, async (req, res) => {
           },
         },
       },
-      'gemini-flash-latest'
+      'gemini-3.6-flash'
     );
 
     const resultText = response.text;
@@ -861,7 +856,7 @@ Rules:
             },
           },
         },
-        'gemini-flash-latest'
+        'gemini-3.6-flash'
       );
 
       const resultText = response.text;

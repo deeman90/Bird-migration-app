@@ -17,7 +17,19 @@ export async function safeFetchJson<T = any>(
   init?: RequestInit
 ): Promise<ApiResponse<T>> {
   try {
-    const response = await fetch(input, init);
+    const defaultHeaders: Record<string, string> = {
+      Accept: 'application/json',
+    };
+
+    const mergedHeaders = {
+      ...defaultHeaders,
+      ...(init?.headers || {}),
+    };
+
+    const response = await fetch(input, {
+      ...init,
+      headers: mergedHeaders,
+    });
     const contentType = response.headers.get('content-type') || '';
 
     // Handle non-2xx status codes safely
@@ -68,7 +80,7 @@ export async function safeFetchJson<T = any>(
         }
         return {
           success: false,
-          error: 'Received non-JSON response from server.',
+          error: 'The server returned an unexpected response format. Please try again.',
         };
       }
     }
@@ -76,7 +88,7 @@ export async function safeFetchJson<T = any>(
     console.warn(`Network fetch failed for ${input}:`, netErr);
     return {
       success: false,
-      error: netErr?.message || 'Network request failed. Please verify connection and retry.',
+      error: netErr?.message || 'Network connection unavailable. Please check your connection and retry.',
     };
   }
 }
