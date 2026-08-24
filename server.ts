@@ -397,6 +397,57 @@ function parseJsonFromModel<T = any>(text?: string | null, fallback?: T): T {
   }
 }
 
+// Resilient helper to execute Gemini API calls with automatic model failover on 503/429/spikes
+async function callGeminiWithFallback(
+  ai: any,
+  generateParams: { contents: any; config?: any },
+  primaryModel: string = 'gemini-2.5-flash'
+): Promise<any> {
+  // Candidate list of supported models in order of failover preference
+  const candidateModels = [
+    primaryModel,
+    'gemini-flash-latest',
+    'gemini-3.1-flash-lite',
+    'gemini-3.7-flash',
+  ].filter((val, idx, self) => self.indexOf(val) === idx);
+
+  let lastError: any = null;
+
+  for (let i = 0; i < candidateModels.length; i++) {
+    const model = candidateModels[i];
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        ...generateParams,
+      });
+
+      if (response) {
+        return response;
+      }
+    } catch (err: any) {
+      lastError = err;
+      const errMsg = err?.message || String(err);
+      const isCapacityError =
+        err?.status === 'UNAVAILABLE' ||
+        err?.error?.code === 503 ||
+        err?.error?.code === 429 ||
+        errMsg.includes('503') ||
+        errMsg.includes('high demand') ||
+        errMsg.includes('RESOURCE_EXHAUSTED') ||
+        errMsg.includes('overloaded');
+
+      console.warn(`[Gemini Fallback] Model '${model}' call notice (${errMsg}). Attempting next candidate (${i + 1}/${candidateModels.length})...`);
+
+      if (isCapacityError && i < candidateModels.length - 1) {
+        // Brief jitter delay before trying alternate model
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    }
+  }
+
+  throw lastError || new Error('All model endpoints temporarily unavailable due to demand spikes.');
+}
+
 // Server-Controlled Official Pricing Configuration (Prevents Client Price Tampering)
 const OFFICIAL_PRICING: Record<string, { monthly: number; yearly: number; symbol: string }> = {
   USD: { monthly: 4.99, yearly: 49.99, symbol: '$' },
@@ -524,64 +575,67 @@ Identify:
 
 ${speciesContext}`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
-      contents: [
-        {
-          inlineData: imagePart,
-        },
-        {
-          text: promptText,
-        },
-      ],
-      config: {
-        systemInstruction:
-          'You are a world-class AI Ornithologist and Avian Identification Expert. When multiple birds exist in an image, you must identify each one from left to right with exact spatial positioning.',
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            commonName: { type: Type.STRING, description: 'Common name of the primary bird species' },
-            scientificName: { type: Type.STRING, description: 'Scientific Latin name of the primary bird' },
-            confidenceScore: { type: Type.NUMBER, description: 'Confidence score percentage between 50 and 99' },
-            category: { type: Type.STRING, description: 'Category (Raptor, Crane, Songbird, Wader, etc)' },
-            diagnosticFeatures: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: 'Key visual markings identified in the photo',
-            },
-            matchedSpeciesId: {
-              type: Type.STRING,
-              description: 'ID of the matched species from the app species list if applicable, or null',
-            },
-            suggestedFlockCount: { type: Type.NUMBER, description: 'Estimated flock count or total birds visible' },
-            suggestedBehavior: {
-              type: Type.STRING,
-              description: 'One of: resting, feeding, flying, nesting, calling',
-            },
-            conservationStatus: { type: Type.STRING, description: 'IUCN conservation status' },
-            description: { type: Type.STRING, description: 'Habitat and identification summary' },
-            funFact: { type: Type.STRING, description: 'A fascinating ornithological fact' },
-            birdsLeftToRight: {
-              type: Type.ARRAY,
-              description: 'List of all individual birds/species identified in order from left to right across the photo',
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  positionLabel: { type: Type.STRING, description: 'Position in photo, e.g. "Bird #1 (Far Left)", "Bird #2 (Center)", "Bird #3 (Right)"' },
-                  commonName: { type: Type.STRING, description: 'Common name of this bird' },
-                  scientificName: { type: Type.STRING, description: 'Scientific name of this bird' },
-                  confidenceScore: { type: Type.NUMBER, description: 'Confidence score percentage (50-99)' },
-                  distinguishingFeature: { type: Type.STRING, description: 'Visual feature helping locate this bird' },
+    const response = await callGeminiWithFallback(
+      ai,
+      {
+        contents: [
+          {
+            inlineData: imagePart,
+          },
+          {
+            text: promptText,
+          },
+        ],
+        config: {
+          systemInstruction:
+            'You are a world-class AI Ornithologist and Avian Identification Expert. When multiple birds exist in an image, you must identify each one from left to right with exact spatial positioning.',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              commonName: { type: Type.STRING, description: 'Common name of the primary bird species' },
+              scientificName: { type: Type.STRING, description: 'Scientific Latin name of the primary bird' },
+              confidenceScore: { type: Type.NUMBER, description: 'Confidence score percentage between 50 and 99' },
+              category: { type: Type.STRING, description: 'Category (Raptor, Crane, Songbird, Wader, etc)' },
+              diagnosticFeatures: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: 'Key visual markings identified in the photo',
+              },
+              matchedSpeciesId: {
+                type: Type.STRING,
+                description: 'ID of the matched species from the app species list if applicable, or null',
+              },
+              suggestedFlockCount: { type: Type.NUMBER, description: 'Estimated flock count or total birds visible' },
+              suggestedBehavior: {
+                type: Type.STRING,
+                description: 'One of: resting, feeding, flying, nesting, calling',
+              },
+              conservationStatus: { type: Type.STRING, description: 'IUCN conservation status' },
+              description: { type: Type.STRING, description: 'Habitat and identification summary' },
+              funFact: { type: Type.STRING, description: 'A fascinating ornithological fact' },
+              birdsLeftToRight: {
+                type: Type.ARRAY,
+                description: 'List of all individual birds/species identified in order from left to right across the photo',
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    positionLabel: { type: Type.STRING, description: 'Position in photo, e.g. "Bird #1 (Far Left)", "Bird #2 (Center)", "Bird #3 (Right)"' },
+                    commonName: { type: Type.STRING, description: 'Common name of this bird' },
+                    scientificName: { type: Type.STRING, description: 'Scientific name of this bird' },
+                    confidenceScore: { type: Type.NUMBER, description: 'Confidence score percentage (50-99)' },
+                    distinguishingFeature: { type: Type.STRING, description: 'Visual feature helping locate this bird' },
+                  },
+                  required: ['positionLabel', 'commonName', 'scientificName', 'confidenceScore'],
                 },
-                required: ['positionLabel', 'commonName', 'scientificName', 'confidenceScore'],
               },
             },
+            required: ['commonName', 'scientificName', 'confidenceScore', 'diagnosticFeatures', 'category'],
           },
-          required: ['commonName', 'scientificName', 'confidenceScore', 'diagnosticFeatures', 'category'],
         },
       },
-    });
+      'gemini-flash-latest'
+    );
 
     const resultText = response.text;
     const fallbackBirdData = {
@@ -639,29 +693,32 @@ app.post('/api/bird-species-search', aiRateLimiter, async (req, res) => {
 
     const ai = getGeminiClient();
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
-      contents: `Provide complete bird species information for: "${query}". Return structured JSON details including commonName, scientificName, category, flywayRegion, description, averageFlockSize, wingspanCm, conservationStatus, and keyMarkings.`,
-      config: {
-        systemInstruction: 'You are an eBird & ornithology database API service. Return accurate bird species specifications.',
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            commonName: { type: Type.STRING },
-            scientificName: { type: Type.STRING },
-            category: { type: Type.STRING },
-            flywayRegion: { type: Type.STRING },
-            description: { type: Type.STRING },
-            averageFlockSize: { type: Type.STRING },
-            wingspanCm: { type: Type.NUMBER },
-            conservationStatus: { type: Type.STRING },
-            keyMarkings: { type: Type.ARRAY, items: { type: Type.STRING } },
+    const response = await callGeminiWithFallback(
+      ai,
+      {
+        contents: `Provide complete bird species information for: "${query}". Return structured JSON details including commonName, scientificName, category, flywayRegion, description, averageFlockSize, wingspanCm, conservationStatus, and keyMarkings.`,
+        config: {
+          systemInstruction: 'You are an eBird & ornithology database API service. Return accurate bird species specifications.',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              commonName: { type: Type.STRING },
+              scientificName: { type: Type.STRING },
+              category: { type: Type.STRING },
+              flywayRegion: { type: Type.STRING },
+              description: { type: Type.STRING },
+              averageFlockSize: { type: Type.STRING },
+              wingspanCm: { type: Type.NUMBER },
+              conservationStatus: { type: Type.STRING },
+              keyMarkings: { type: Type.ARRAY, items: { type: Type.STRING } },
+            },
+            required: ['commonName', 'scientificName', 'category', 'description'],
           },
-          required: ['commonName', 'scientificName', 'category', 'description'],
         },
       },
-    });
+      'gemini-flash-latest'
+    );
 
     const resultText = response.text;
     const fallbackSearch = {
@@ -772,37 +829,40 @@ Rules:
 2. If the photo is a downloaded web image or stock graphic, set isGenuinePhoto to false, authenticityStatus to "web_download_detected", and give a clear failureReason explaining terms violation (e.g., "Downloaded web image detected. Missing authentic mobile camera metadata").
 3. If it is a genuine field photo taken by a smartphone or camera, set isGenuinePhoto to true, authenticityStatus to "authentic_camera_photo", and extract deviceMake (e.g. Apple, Samsung, Google, Sony, Canon) and deviceModel if available.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.7-flash',
-        contents: [
-          { inlineData: imagePart },
-          { text: verificationPrompt },
-        ],
-        config: {
-          systemInstruction:
-            'You are an expert digital forensics and image quality analyst specialized in image metadata, EXIF validation, and photography assessment.',
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              isGenuinePhoto: { type: Type.BOOLEAN, description: 'True if genuine field camera photo, false if downloaded web photo' },
-              authenticityStatus: {
-                type: Type.STRING,
-                description: 'Either "authentic_camera_photo" or "web_download_detected"',
+      const response = await callGeminiWithFallback(
+        ai,
+        {
+          contents: [
+            { inlineData: imagePart },
+            { text: verificationPrompt },
+          ],
+          config: {
+            systemInstruction:
+              'You are an expert digital forensics and image quality analyst specialized in image metadata, EXIF validation, and photography assessment.',
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                isGenuinePhoto: { type: Type.BOOLEAN, description: 'True if genuine field camera photo, false if downloaded web photo' },
+                authenticityStatus: {
+                  type: Type.STRING,
+                  description: 'Either "authentic_camera_photo" or "web_download_detected"',
+                },
+                failureReason: { type: Type.STRING, description: 'Explanation if rejected as web download' },
+                deviceMake: { type: Type.STRING, description: 'Camera or phone brand if identified (e.g., Apple, Samsung, Google, Sony)' },
+                deviceModel: { type: Type.STRING, description: 'Camera or phone model (e.g., iPhone 15 Pro, Pixel 8, Galaxy S24)' },
+                confidenceScore: { type: Type.NUMBER, description: 'Confidence percentage (50-99)' },
+                imageQualityScore: { type: Type.NUMBER, description: 'Image quality score 0-100 based on focus, clarity, and lighting' },
+                isGoodQuality: { type: Type.BOOLEAN, description: 'True if image quality is good (score >= 60)' },
+                qualityBonus: { type: Type.NUMBER, description: '10 bonus points for good quality image capture, otherwise 0' },
+                qualityNotes: { type: Type.STRING, description: 'Notes on photo quality and bonus points eligibility' },
               },
-              failureReason: { type: Type.STRING, description: 'Explanation if rejected as web download' },
-              deviceMake: { type: Type.STRING, description: 'Camera or phone brand if identified (e.g., Apple, Samsung, Google, Sony)' },
-              deviceModel: { type: Type.STRING, description: 'Camera or phone model (e.g., iPhone 15 Pro, Pixel 8, Galaxy S24)' },
-              confidenceScore: { type: Type.NUMBER, description: 'Confidence percentage (50-99)' },
-              imageQualityScore: { type: Type.NUMBER, description: 'Image quality score 0-100 based on focus, clarity, and lighting' },
-              isGoodQuality: { type: Type.BOOLEAN, description: 'True if image quality is good (score >= 60)' },
-              qualityBonus: { type: Type.NUMBER, description: '10 bonus points for good quality image capture, otherwise 0' },
-              qualityNotes: { type: Type.STRING, description: 'Notes on photo quality and bonus points eligibility' },
+              required: ['isGenuinePhoto', 'authenticityStatus'],
             },
-            required: ['isGenuinePhoto', 'authenticityStatus'],
           },
         },
-      });
+        'gemini-flash-latest'
+      );
 
       const resultText = response.text;
       resultJson = parseJsonFromModel(resultText, null);
