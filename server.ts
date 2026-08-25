@@ -72,7 +72,7 @@ function getGeminiClient(): GoogleGenAI {
   if (!aiClient) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error('GEMINI_API_KEY environment variable is missing.');
+      throw new Error('GEMINI_API_KEY environment variable is missing. Please add GEMINI_API_KEY in your Vercel Project Settings > Environment Variables.');
     }
     aiClient = new GoogleGenAI({
       apiKey,
@@ -933,7 +933,7 @@ Rules:
   }
 });
 
-// Start Express Server & Vite Middleware
+// Start Express Server & Vite Middleware (when running as standalone container/server)
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -954,4 +954,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
