@@ -58,6 +58,21 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
   const [deviceType, setDeviceType] = useState<string>('Apple iPhone 15 Pro (Camera)');
 
   // Photo upload & EXIF authenticity
+  // Geolocation & Location assist notice
+  const [gpsNotice, setGpsNotice] = useState<{
+    type: 'denied' | 'unavailable' | 'success';
+    message: string;
+  } | null>(null);
+
+  // Popular flyway birding hotspots for instant 1-click coordinate selection
+  const POPULAR_BIRDING_HOTSPOTS = [
+    { name: 'Cape May Observatory, NJ', lat: '38.9351', lng: '-74.9060', region: 'Atlantic Flyway' },
+    { name: 'Point Pelee National Park, ON', lat: '41.9628', lng: '-82.5186', region: 'Mississippi Flyway' },
+    { name: 'Klamath Basin Wildlife Refuge, OR', lat: '42.2249', lng: '-121.7817', region: 'Pacific Flyway' },
+    { name: 'Hawk Mountain Sanctuary, PA', lat: '40.6337', lng: '-75.9863', region: 'Atlantic Flyway' },
+    { name: 'Bosque del Apache, NM', lat: '33.7997', lng: '-106.8872', region: 'Central Flyway' },
+    { name: 'Everglades National Park, FL', lat: '25.2866', lng: '-80.8987', region: 'Atlantic Flyway' },
+  ];
   const [photoUrl, setPhotoUrl] = useState<string>(SAMPLE_BIRD_PHOTOS[0]);
   const [previewImage, setPreviewImage] = useState<string>(SAMPLE_BIRD_PHOTOS[0]);
   const [currentImageFile, setCurrentImageFile] = useState<File | null>(null);
@@ -210,8 +225,13 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
   // GPS geolocation fetch
   const handleFetchGpsLocation = () => {
     setLoggerError(null);
+    setGpsNotice(null);
+
     if (!navigator.geolocation) {
-      setLoggerError('Geolocation is not supported by your browser.');
+      setGpsNotice({
+        type: 'unavailable',
+        message: 'Geolocation is not supported by your current browser environment.',
+      });
       return;
     }
 
@@ -224,10 +244,30 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
         setLongitude(String(lng));
         setLocationName(`Current GPS Location (${lat}, ${lng})`);
         setIsGettingGps(false);
+        setGpsNotice({
+          type: 'success',
+          message: `GPS coordinates successfully detected (${lat}, ${lng})`,
+        });
       },
       (error) => {
         setIsGettingGps(false);
-        setLoggerError(`Could not fetch GPS coordinates: ${error.message}. Please enter manually or select on the map.`);
+        if (error.code === error.PERMISSION_DENIED) {
+          setGpsNotice({
+            type: 'denied',
+            message:
+              'Browser location permission was denied. You can allow location access in your browser settings (click the 🔒/🎛️ icon next to the URL), select a flyway hotspot preset, or pick directly on the map.',
+          });
+        } else if (error.code === error.TIMEOUT) {
+          setGpsNotice({
+            type: 'unavailable',
+            message: 'Location request timed out. Please select a hotspot preset or enter coordinates manually.',
+          });
+        } else {
+          setGpsNotice({
+            type: 'unavailable',
+            message: `Could not acquire GPS fix (${error.message || 'Position unavailable'}). Choose a hotspot preset or click on the map.`,
+          });
+        }
       },
       { timeout: 10000, enableHighAccuracy: true }
     );
@@ -269,6 +309,19 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
         const arrayBuffer = await file.arrayBuffer();
         const exifData = await extractImageExif(arrayBuffer);
         setClientExif(exifData);
+
+        // If photo contains GPS coordinates, automatically suggest or populate them
+        if (exifData.gpsLatitude !== undefined && exifData.gpsLongitude !== undefined) {
+          const photoLat = Number(exifData.gpsLatitude.toFixed(5));
+          const photoLng = Number(exifData.gpsLongitude.toFixed(5));
+          setLatitude(String(photoLat));
+          setLongitude(String(photoLng));
+          setLocationName(`Photo EXIF Coordinates (${photoLat}, ${photoLng})`);
+          setGpsNotice({
+            type: 'success',
+            message: `📍 Automatically extracted GPS coordinates from photo EXIF tags (${photoLat}, ${photoLng})`,
+          });
+        }
       } catch (err) {
         console.warn('Could not parse EXIF:', err);
       }
@@ -667,6 +720,94 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
                     <span>Pick on Map</span>
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* GPS Notice / Browser Permission Helper */}
+            {gpsNotice && (
+              <div
+                className={`p-3.5 rounded-lg border text-xs font-mono-code space-y-2 animate-in fade-in ${
+                  gpsNotice.type === 'denied'
+                    ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
+                    : gpsNotice.type === 'unavailable'
+                    ? 'bg-cyan-950/40 border-cyan-500/40 text-cyan-200'
+                    : 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start space-x-2">
+                    <span className="text-base leading-none">
+                      {gpsNotice.type === 'denied' ? '🔒' : gpsNotice.type === 'success' ? '✅' : 'ℹ️'}
+                    </span>
+                    <div>
+                      <p className="font-bold uppercase tracking-wider">
+                        {gpsNotice.type === 'denied'
+                          ? 'Browser Geolocation Permission Denied'
+                          : gpsNotice.type === 'success'
+                          ? 'GPS Coordinates Located'
+                          : 'Location Service Note'}
+                      </p>
+                      <p className="mt-1 text-[11px] leading-relaxed opacity-90">{gpsNotice.message}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setGpsNotice(null)}
+                    className="opacity-70 hover:opacity-100 p-1 min-h-[32px] text-xs font-bold"
+                    aria-label="Dismiss notice"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Photo EXIF Coordinates Shortcut if available */}
+            {clientExif?.gpsLatitude !== undefined && clientExif?.gpsLongitude !== undefined && (
+              <div className="flex items-center justify-between p-2.5 bg-[#00ffaa]/10 border border-[#00ffaa]/30 rounded text-xs font-mono-code text-[#00ffaa]">
+                <div className="flex items-center space-x-2">
+                  <span>📸 Photo has embedded GPS:</span>
+                  <span className="font-bold">
+                    {clientExif.gpsLatitude.toFixed(4)}°, {clientExif.gpsLongitude.toFixed(4)}°
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (clientExif.gpsLatitude !== undefined && clientExif.gpsLongitude !== undefined) {
+                      setLatitude(String(Number(clientExif.gpsLatitude.toFixed(5))));
+                      setLongitude(String(Number(clientExif.gpsLongitude.toFixed(5))));
+                      setLocationName(`Photo EXIF Location (${clientExif.gpsLatitude.toFixed(4)}, ${clientExif.gpsLongitude.toFixed(4)})`);
+                    }
+                  }}
+                  className="px-2.5 py-1 bg-[#00ffaa] text-black font-bold uppercase rounded hover:bg-[#00ffaa]/80 transition-colors"
+                >
+                  Apply to Form
+                </button>
+              </div>
+            )}
+
+            {/* Hotspot Presets Quick Selector */}
+            <div className="space-y-1.5 pt-1">
+              <label className="font-mono-code text-[11px] text-[#edeeef]/50 uppercase tracking-wider block">
+                Quick Hotspot Presets:
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {POPULAR_BIRDING_HOTSPOTS.map((hotspot) => (
+                  <button
+                    key={hotspot.name}
+                    type="button"
+                    onClick={() => {
+                      setLatitude(hotspot.lat);
+                      setLongitude(hotspot.lng);
+                      setLocationName(hotspot.name);
+                      setGpsNotice(null);
+                    }}
+                    className="text-[11px] font-mono-code px-2.5 py-1 rounded bg-[rgba(237,238,239,0.06)] hover:bg-[rgba(237,238,239,0.15)] border border-[rgba(237,238,239,0.12)] text-[#edeeef]/80 hover:text-white transition-all text-left"
+                  >
+                    📍 {hotspot.name.split(',')[0]}
+                  </button>
+                ))}
               </div>
             </div>
 
