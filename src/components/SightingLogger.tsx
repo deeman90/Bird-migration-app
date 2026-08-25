@@ -5,7 +5,7 @@ import { extractImageExif, ExtractedExifData } from '../utils/exifParser';
 import { uploadSightingPhotoToSupabase } from '../services/sightingsService';
 import { computeImageHash, checkDuplicateImage } from '../utils/imageHasher';
 import { optimizeImageForApi } from '../utils/imageOptimizer';
-import { safeFetchJson } from '../utils/apiClient';
+import { safeFetchJson, extractErrorMessage } from '../utils/apiClient';
 import { Camera, MapPin, Upload, Navigation, CheckCircle2, AlertCircle, Sparkles, Plus, Image as ImageIcon, Crosshair, RefreshCw, Tag, ShieldCheck, Search, ShieldAlert, AlertTriangle, Smartphone } from 'lucide-react';
 
 interface SightingLoggerProps {
@@ -170,7 +170,8 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       });
 
       if (!json.success || !json.data) {
-        throw new Error(json.error || 'AI Identification failed.');
+        const failureReason = extractErrorMessage(json.error, 'AI Identification failed. Please check your photo and try again.');
+        throw new Error(failureReason);
       }
 
       const data = json.data;
@@ -207,7 +208,8 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       );
     } catch (err: any) {
       console.error('AI identification error:', err);
-      setLoggerError(err.message || 'AI Vision Identification failed. Please try again.');
+      const cleanErrorMsg = extractErrorMessage(err?.message || err, 'AI Vision Identification failed. Please try again.');
+      setLoggerError(cleanErrorMsg);
     } finally {
       setIsAiScanning(false);
     }

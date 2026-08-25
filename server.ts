@@ -396,14 +396,15 @@ function parseJsonFromModel<T = any>(text?: string | null, fallback?: T): T {
 async function callGeminiWithFallback(
   ai: any,
   generateParams: { contents: any; config?: any },
-  primaryModel: string = 'gemini-3.6-flash'
+  primaryModel = 'gemini-2.5-flash'
 ): Promise<any> {
   // Candidate list of supported models in order of failover preference
   const candidateModels = [
     primaryModel,
-    'gemini-3.6-flash',
+    'gemini-2.5-flash',
     'gemini-3.7-flash',
-    'gemini-3.1-flash-lite',
+    'gemini-flash-latest',
+    'gemini-2.5-pro',
   ].filter((val, idx, self) => self.indexOf(val) === idx);
 
   let lastError: any = null;
@@ -421,7 +422,7 @@ async function callGeminiWithFallback(
       }
     } catch (err: any) {
       lastError = err;
-      const errMsg = err?.message || String(err);
+      const errMsg = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
       console.warn(`[Gemini Fallback] Model '${model}' call notice (${errMsg}). Attempting next candidate (${i + 1}/${candidateModels.length})...`);
 
       if (i < candidateModels.length - 1) {
@@ -431,7 +432,8 @@ async function callGeminiWithFallback(
     }
   }
 
-  throw lastError || new Error('All model endpoints temporarily unavailable due to demand spikes.');
+  const finalErrMsg = lastError?.message || (typeof lastError === 'object' ? JSON.stringify(lastError) : String(lastError));
+  throw new Error(finalErrMsg || 'All Gemini model endpoints temporarily unavailable. Please verify your GEMINI_API_KEY in Vercel settings.');
 }
 
 // Server-Controlled Official Pricing Configuration (Prevents Client Price Tampering)
@@ -620,7 +622,7 @@ ${speciesContext}`;
           },
         },
       },
-      'gemini-3.6-flash'
+      'gemini-2.5-flash'
     );
 
     const resultText = response.text;
@@ -712,7 +714,7 @@ app.post('/api/bird-species-search', aiRateLimiter, async (req, res) => {
           },
         },
       },
-      'gemini-3.6-flash'
+      'gemini-2.5-flash'
     );
 
     const resultText = response.text;
@@ -856,7 +858,7 @@ Rules:
             },
           },
         },
-        'gemini-3.6-flash'
+        'gemini-2.5-flash'
       );
 
       const resultText = response.text;

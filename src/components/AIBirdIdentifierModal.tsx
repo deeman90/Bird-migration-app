@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { BirdSpecies } from '../types';
 import { uploadFileToSupabaseStorage } from '../services/storageService.js';
 import { optimizeImageForApi } from '../utils/imageOptimizer';
-import { safeFetchJson } from '../utils/apiClient';
+import { safeFetchJson, extractErrorMessage } from '../utils/apiClient';
 import { Camera, Sparkles, CheckCircle2, AlertCircle, RefreshCw, ArrowRight, ShieldCheck, Tag, Info, Search } from 'lucide-react';
 
 interface AIBirdIdentifierModalProps {
@@ -117,13 +117,15 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
       });
 
       if (!json.success || !json.data) {
-        throw new Error(json.error || 'Bird identification failed.');
+        const failureReason = extractErrorMessage(json.error, 'Bird identification failed. Please check your photo and try again.');
+        throw new Error(failureReason);
       }
 
       setAiResult(json.data);
     } catch (err: any) {
       console.error('AI Identification error:', err);
-      setErrorMsg(err.message || 'Failed to scan bird image. Please ensure photo is clear or try again.');
+      const cleanMsg = extractErrorMessage(err?.message || err, 'Failed to scan bird image. Please ensure photo is clear or try again.');
+      setErrorMsg(cleanMsg);
     } finally {
       setIsScanning(false);
     }
