@@ -17,24 +17,26 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// In-Memory IP Rate Limiter Middleware
+// In-Memory IP Rate Limiter Middleware (Serverless-Safe)
 interface RateLimitStore {
   [ip: string]: { count: number; resetTime: number };
 }
 
 const createRateLimiter = (windowMs: number, maxRequests: number, message: string) => {
   const store: RateLimitStore = {};
-
-  setInterval(() => {
-    const now = Date.now();
-    for (const ip in store) {
-      if (store[ip].resetTime < now) delete store[ip];
-    }
-  }, windowMs);
+  let lastCleanup = Date.now();
 
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
     const now = Date.now();
+
+    // Lazy cleanup every windowMs
+    if (now - lastCleanup > windowMs) {
+      for (const ip in store) {
+        if (store[ip].resetTime < now) delete store[ip];
+      }
+      lastCleanup = now;
+    }
 
     if (!store[clientIp] || store[clientIp].resetTime < now) {
       store[clientIp] = { count: 1, resetTime: now + windowMs };
