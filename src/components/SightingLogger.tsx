@@ -420,8 +420,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
         authData = json.data;
       } else if (json.noImageDetected && json.error) {
         setIsVerifyingPhoto(false);
-        const cleanErr = extractErrorMessage(json.error, 'No image detected. Please upload or add a clear bird photo.');
-        setLoggerError(cleanErr);
+        setLoggerError(json.error);
         return;
       }
     } catch (err: any) {
@@ -449,8 +448,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
 
     // If no image detected from analysis, prompt user to add an image (do NOT suspend)
     if (authData.authenticityStatus === 'no_image_detected') {
-      const cleanReason = extractErrorMessage(authData.failureReason, 'No image detected. Please upload or add a clear bird image.');
-      setLoggerError(cleanReason);
+      setLoggerError(authData.failureReason || 'No image detected. Please upload or add a clear bird image.');
       return;
     }
 

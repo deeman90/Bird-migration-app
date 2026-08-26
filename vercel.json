@@ -2,28 +2,8 @@
   "version": 2,
   "rewrites": [
     {
-      "source": "/api/identify-bird",
-      "destination": "/api/identify-bird"
-    },
-    {
-      "source": "/api/verify-image-authenticity",
-      "destination": "/api/verify-image-authenticity"
-    },
-    {
-      "source": "/api/bird-species-search",
-      "destination": "/api/bird-species-search"
-    },
-    {
-      "source": "/api/health",
-      "destination": "/api/health"
-    },
-    {
       "source": "/api/(.*)",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
+      "destination": "/api"
     }
   ]
 }
