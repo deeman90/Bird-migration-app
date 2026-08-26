@@ -7,8 +7,8 @@
 
 export async function optimizeImageForApi(
   source: string | File,
-  maxDimension = 1280,
-  quality = 0.85
+  maxDimension = 800,
+  quality = 0.78
 ): Promise<string> {
   // If it's an external web URL (and not a local blob/data URL), we don't need to convert to data URL unless desired
   if (typeof source === 'string' && source.startsWith('http') && !source.startsWith('blob:')) {

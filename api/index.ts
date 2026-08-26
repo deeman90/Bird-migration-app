@@ -3,13 +3,20 @@ import { GoogleGenAI, Type } from '@google/genai';
 
 const app = express();
 
-// Security Headers
+// Security and CORS Headers
 app.disable('x-powered-by');
 app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
   next();
 });
 
@@ -210,6 +217,26 @@ async function getImagePart(photoUrl?: string, base64Image?: string): Promise<{ 
   };
 }
 
+// Helper to extract text from Gemini response safely
+function extractResponseText(response: any): string {
+  if (!response) return '';
+  if (typeof response.text === 'string') return response.text;
+  if (typeof response.text === 'function') {
+    try {
+      const t = response.text();
+      if (typeof t === 'string') return t;
+    } catch {
+      // continue
+    }
+  }
+  if (response.candidates?.[0]?.content?.parts) {
+    return response.candidates[0].content.parts
+      .map((p: any) => (typeof p === 'string' ? p : p?.text || ''))
+      .join('');
+  }
+  return '';
+}
+
 // Robust helper to parse JSON text from AI models
 function parseJsonFromModel<T = any>(text?: string | null, fallback?: T): T {
   if (!text || typeof text !== 'string') {
@@ -257,28 +284,35 @@ function parseJsonFromModel<T = any>(text?: string | null, fallback?: T): T {
   }
 }
 
-// Resilient helper to execute Gemini API calls with automatic model failover
+// Resilient helper to execute Gemini API calls with automatic retry and model failover
 async function callGeminiWithFallback(
   ai: any,
   generateParams: { contents: any; config?: any },
-  primaryModel = 'gemini-2.5-flash'
+  primaryModel = 'gemini-3.1-flash-lite'
 ): Promise<any> {
   const candidateModels = [
     primaryModel,
-    'gemini-2.5-flash',
-    'gemini-3.7-flash',
+    'gemini-3.1-flash-lite',
     'gemini-flash-latest',
-    'gemini-2.5-pro',
-  ].filter((val, idx, self) => self.indexOf(val) === idx);
+    'gemini-3.7-flash',
+  ].filter((val, idx, self) => Boolean(val) && self.indexOf(val) === idx);
 
   let lastError: any = null;
 
   for (let i = 0; i < candidateModels.length; i++) {
     const model = candidateModels[i];
     try {
+      // Ensure fast low-latency execution without reasoning delay
+      const baseConfig = generateParams.config || {};
+      const optimizedConfig = {
+        ...baseConfig,
+        thinkingConfig: { thinkingBudget: 0 },
+      };
+
       const response = await ai.models.generateContent({
         model,
-        ...generateParams,
+        contents: generateParams.contents,
+        config: optimizedConfig,
       });
 
       if (response) {
@@ -286,17 +320,22 @@ async function callGeminiWithFallback(
       }
     } catch (err: any) {
       lastError = err;
-      const errMsg = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
-      console.warn(`[Gemini Fallback] Model '${model}' call notice (${errMsg}). Attempting next candidate (${i + 1}/${candidateModels.length})...`);
+      const status = err?.status || err?.code || (err?.error && err.error.code);
+      const isTransient = status === 503 || status === 429 || status === 'UNAVAILABLE' || status === 'RESOURCE_EXHAUSTED';
+
+      if (isTransient && i < candidateModels.length - 1) {
+        console.info(`[Gemini] Rapid failover from '${model}' to next candidate...`);
+        continue;
+      }
 
       if (i < candidateModels.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        console.info(`[Gemini] Switching from '${model}' to next candidate model...`);
       }
     }
   }
 
   const finalErrMsg = lastError?.message || (typeof lastError === 'object' ? JSON.stringify(lastError) : String(lastError));
-  throw new Error(finalErrMsg || 'All Gemini model endpoints temporarily unavailable. Please verify your GEMINI_API_KEY in Vercel settings.');
+  throw new Error(finalErrMsg || 'All Gemini model endpoints temporarily unavailable. Please try again shortly.');
 }
 
 // Server-Controlled Official Pricing Configuration
@@ -482,10 +521,10 @@ ${speciesContext}`;
           },
         },
       },
-      'gemini-2.5-flash'
+      'gemini-3.1-flash-lite'
     );
 
-    const resultText = response.text;
+    const resultText = extractResponseText(response);
     const fallbackBirdData = {
       commonName: 'Migratory Crane / Waterfowl',
       scientificName: 'Grus canadensis',
@@ -573,10 +612,10 @@ app.post(['/api/bird-species-search', '/bird-species-search'], aiRateLimiter, as
           },
         },
       },
-      'gemini-2.5-flash'
+      'gemini-3.1-flash-lite'
     );
 
-    const resultText = response.text;
+    const resultText = extractResponseText(response);
     const fallbackSearch = {
       commonName: query,
       scientificName: `${query} spp.`,
@@ -712,10 +751,10 @@ Rules:
             },
           },
         },
-        'gemini-2.5-flash'
+        'gemini-3.1-flash-lite'
       );
 
-      const resultText = response.text;
+      const resultText = extractResponseText(response);
       resultJson = parseJsonFromModel(resultText, null);
     } catch (aiErr: any) {
       console.warn('Gemini vision verification notice, using heuristic EXIF validator:', aiErr.message);
@@ -784,6 +823,24 @@ Rules:
       error: error?.message || 'No valid image detected. Please upload or attach a clear bird photo.',
     });
   }
+});
+
+// Fallback JSON 404 handler for API routes
+app.all('/api/*', (req, res) => {
+  return res.status(404).json({
+    success: false,
+    error: `API endpoint ${req.method} ${req.path} not found.`,
+  });
+});
+
+// Express Global Error Handler (Prevents default HTML error pages)
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[API Server Error]', err);
+  const status = err.status || err.statusCode || 500;
+  return res.status(status).json({
+    success: false,
+    error: err.message || 'An unexpected server error occurred. Please try again.',
+  });
 });
 
 export default app;
