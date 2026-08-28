@@ -1114,17 +1114,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       </span>
                     </div>
 
-                    {/* Active DB Subscription Detail */}
+                    {/* Active Membership Record Detail */}
                     {dbSub && currentUser.tier === 'paid' && (
                       <div className="mt-3 p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] font-mono text-slate-300 space-y-1">
                         <p className="text-amber-400 font-bold flex items-center space-x-1">
                           <Sparkles className="w-3.5 h-3.5" />
-                          <span>Supabase Synced Subscription:</span>
+                          <span>Active Membership Details:</span>
                         </p>
-                        <p>• Provider: <strong className="text-white uppercase">{dbSub.provider}</strong></p>
-                        <p>• Ref: <strong className="text-emerald-400">{dbSub.transactionRef}</strong></p>
-                        <p>• Code: <span className="text-slate-400">{dbSub.subscriptionCode}</span></p>
-                        <p>• Valid Until: <span className="text-cyan-400">{new Date(dbSub.currentPeriodEnd || '').toLocaleDateString()}</span></p>
+                        <p>• Gateway: <strong className="text-white uppercase">{dbSub.provider}</strong></p>
+                        <p>• Reference: <strong className="text-emerald-400">{dbSub.transactionRef}</strong></p>
+                        <p>• Plan Code: <span className="text-slate-400">{dbSub.subscriptionCode}</span></p>
+                        <p>• Renews / Valid Until: <span className="text-cyan-400">{new Date(dbSub.currentPeriodEnd || '').toLocaleDateString()}</span></p>
                       </div>
                     )}
                   </div>
