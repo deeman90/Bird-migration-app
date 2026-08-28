@@ -389,38 +389,38 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   ]);
 
   return (
-    <div className="relative w-full h-[calc(100vh-4rem)] min-h-[550px] bg-slate-950 overflow-hidden flex flex-col">
+    <div className="relative w-full h-[calc(100dvh-3.5rem)] md:h-[calc(100vh-4rem)] min-h-[480px] bg-slate-950 overflow-hidden flex flex-col">
       {/* Map Control Overlay Banner */}
-      <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3 z-30 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3 z-30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 pointer-events-none">
         
         {/* Layer Toggles & Filters */}
-        <div className="pointer-events-auto max-w-full overflow-x-auto flex items-center gap-1.5 bg-[#0b0c0d]/90 backdrop-blur-md p-1.5 sm:p-2 rounded border border-[rgba(237,238,239,0.1)] text-[#edeeef] shadow-xl no-scrollbar">
+        <div className="pointer-events-auto max-w-full overflow-x-auto flex items-center gap-1.5 bg-[#0b0c0d]/90 backdrop-blur-md p-1.5 sm:p-2 rounded-lg border border-[rgba(237,238,239,0.1)] text-[#edeeef] shadow-xl no-scrollbar">
           <div className="flex items-center space-x-1 pr-1.5 border-r border-[rgba(237,238,239,0.1)] shrink-0">
-            <Compass className="w-4 h-4 text-[#00ffaa]" />
+            <Compass className="w-3.5 h-3.5 text-[#00ffaa]" />
             <span className="font-mono-code text-[10px] uppercase font-bold text-[#edeeef]/70 hidden sm:inline">Layers:</span>
           </div>
 
           <button
             onClick={() => setShowRoutes(!showRoutes)}
-            className={`px-2 py-1 rounded text-xs font-mono-code uppercase tracking-wider transition-all flex items-center space-x-1 shrink-0 ${
-              showRoutes ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'bg-[rgba(237,238,239,0.05)] text-[#edeeef]/50'
+            className={`min-h-[32px] px-2.5 py-1 rounded text-xs font-mono-code uppercase tracking-wider transition-all flex items-center space-x-1 shrink-0 cursor-pointer active:scale-95 ${
+              showRoutes ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold' : 'bg-[rgba(237,238,239,0.05)] text-[#edeeef]/50'
             }`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block"></span>
-            <span>Flyway Paths</span>
+            <span>Flyways</span>
           </button>
 
           {currentUser.tier === 'free' && (
-            <div className="bg-amber-400/10 border border-amber-400/30 px-2.5 py-1 rounded text-amber-300 text-[11px] font-mono-code flex items-center space-x-1 shrink-0">
+            <div className="bg-amber-400/10 border border-amber-400/30 px-2 py-1 rounded text-amber-300 text-[10px] font-mono-code flex items-center space-x-1 shrink-0">
               <Lock className="w-3 h-3 text-amber-400" />
-              <span>Free Mode: Your Sightings Only</span>
+              <span>Mine Only</span>
             </div>
           )}
 
           <button
             onClick={() => setShowSightings(!showSightings)}
-            className={`px-2 py-1 rounded text-xs font-mono-code uppercase tracking-wider transition-all flex items-center space-x-1 shrink-0 ${
-              showSightings ? 'bg-[#00ffaa]/20 text-[#00ffaa] border border-[#00ffaa]/40' : 'bg-[rgba(237,238,239,0.05)] text-[#edeeef]/50'
+            className={`min-h-[32px] px-2.5 py-1 rounded text-xs font-mono-code uppercase tracking-wider transition-all flex items-center space-x-1 shrink-0 cursor-pointer active:scale-95 ${
+              showSightings ? 'bg-[#00ffaa]/20 text-[#00ffaa] border border-[#00ffaa]/40 font-bold' : 'bg-[rgba(237,238,239,0.05)] text-[#edeeef]/50'
             }`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-[#00ffaa] inline-block"></span>
@@ -435,8 +435,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
           <button
             onClick={() => setShowHotspots(!showHotspots)}
-            className={`px-2 py-1 rounded text-xs font-mono-code uppercase tracking-wider transition-all flex items-center space-x-1 shrink-0 ${
-              showHotspots ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-[rgba(237,238,239,0.05)] text-[#edeeef]/50'
+            className={`min-h-[32px] px-2.5 py-1 rounded text-xs font-mono-code uppercase tracking-wider transition-all flex items-center space-x-1 shrink-0 cursor-pointer active:scale-95 ${
+              showHotspots ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold' : 'bg-[rgba(237,238,239,0.05)] text-[#edeeef]/50'
             }`}
           >
             {currentUser.tier === 'paid' ? (
@@ -452,7 +452,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             <select
               value={selectedSpeciesFilter}
               onChange={(e) => setSelectedSpeciesFilter(e.target.value)}
-              className="bg-[#0b0c0d] text-xs font-mono-code text-[#edeeef] border border-[rgba(237,238,239,0.15)] rounded px-2 py-1 focus:outline-none focus:border-[#00ffaa]"
+              className="bg-[#0b0c0d] text-xs font-mono-code text-[#edeeef] border border-[rgba(237,238,239,0.15)] rounded px-2 py-1.5 focus:outline-none focus:border-[#00ffaa] min-h-[32px]"
             >
               <option value="All">All Species</option>
               {speciesList.map((sp) => (
@@ -468,7 +468,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             <select
               value={selectedRegionFilter}
               onChange={(e) => setSelectedRegionFilter(e.target.value)}
-              className="bg-[#0b0c0d] text-xs font-mono-code text-[#edeeef] border border-[rgba(237,238,239,0.15)] rounded px-2 py-1 focus:outline-none focus:border-[#00ffaa]"
+              className="bg-[#0b0c0d] text-xs font-mono-code text-[#edeeef] border border-[rgba(237,238,239,0.15)] rounded px-2 py-1.5 focus:outline-none focus:border-[#00ffaa] min-h-[32px]"
             >
               <option value="All">All Locations</option>
               {availableRegions.map((reg) => (
@@ -481,10 +481,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         </div>
 
         {/* Tile Style Picker */}
-        <div className="pointer-events-auto flex items-center space-x-1 bg-[#0b0c0d]/90 backdrop-blur-md p-1 sm:p-1.5 rounded border border-[rgba(237,238,239,0.1)] text-xs shrink-0">
+        <div className="pointer-events-auto self-end sm:self-auto flex items-center space-x-1 bg-[#0b0c0d]/90 backdrop-blur-md p-1 rounded-lg border border-[rgba(237,238,239,0.1)] text-xs shrink-0 shadow-xl">
           <button
             onClick={() => setMapTileStyle('dark')}
-            className={`px-2 py-1 rounded text-[11px] font-mono-code uppercase transition-all ${
+            className={`px-2.5 py-1 rounded text-[10px] sm:text-[11px] font-mono-code uppercase transition-all cursor-pointer min-h-[28px] ${
               mapTileStyle === 'dark' ? 'bg-[#00ffaa] text-[#0b0c0d] font-bold' : 'text-[#edeeef]/60 hover:text-[#edeeef]'
             }`}
           >
@@ -492,7 +492,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           </button>
           <button
             onClick={() => setMapTileStyle('satellite')}
-            className={`px-2 py-1 rounded text-[11px] font-mono-code uppercase transition-all ${
+            className={`px-2.5 py-1 rounded text-[10px] sm:text-[11px] font-mono-code uppercase transition-all cursor-pointer min-h-[28px] ${
               mapTileStyle === 'satellite' ? 'bg-[#00ffaa] text-[#0b0c0d] font-bold' : 'text-[#edeeef]/60 hover:text-[#edeeef]'
             }`}
           >
@@ -506,25 +506,25 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
       {/* Picker Banner Mode Instructions */}
       {isPickerMode && (
-        <div className="absolute top-16 sm:top-20 left-1/2 transform -translate-x-1/2 z-30 bg-[#00ffaa] text-[#0b0c0d] font-bold text-xs sm:text-sm px-3.5 py-2 rounded shadow-2xl flex items-center space-x-2 border border-[#0b0c0d] animate-bounce w-[90%] max-w-md justify-center text-center">
+        <div className="absolute top-16 sm:top-20 left-1/2 transform -translate-x-1/2 z-30 bg-[#00ffaa] text-[#0b0c0d] font-bold text-xs sm:text-sm px-3.5 py-2.5 rounded-lg shadow-2xl flex items-center space-x-2 border border-[#0b0c0d] animate-bounce w-[92%] max-w-md justify-center text-center">
           <MapPin className="w-4 h-4 shrink-0" />
           <span>Tap anywhere on the map to set coordinates!</span>
         </div>
       )}
 
-      {/* Time Playback Slider Bar at Bottom */}
-      <div className="absolute bottom-3 left-2 right-2 sm:left-1/2 sm:transform sm:-translate-x-1/2 sm:w-full sm:max-w-2xl z-30 bg-[#0b0c0d]/95 backdrop-blur-md p-2.5 sm:p-3.5 rounded border border-[rgba(237,238,239,0.1)] shadow-2xl text-[#edeeef]">
-        <div className="flex items-center justify-between mb-1.5 gap-2">
-          <div className="flex items-center space-x-2 min-h-[36px]">
+      {/* Time Playback Slider Bar at Bottom (Positioned above mobile bottom dock) */}
+      <div className="absolute bottom-20 md:bottom-4 left-2 right-2 sm:left-1/2 sm:transform sm:-translate-x-1/2 sm:w-full sm:max-w-xl z-30 bg-[#0b0c0d]/95 backdrop-blur-md p-2.5 sm:p-3 rounded-xl border border-[rgba(237,238,239,0.12)] shadow-2xl text-[#edeeef]">
+        <div className="flex items-center justify-between mb-1 gap-2">
+          <div className="flex items-center space-x-2 min-h-[32px]">
             <button
               onClick={() => setIsPlayingTimeAnimation(!isPlayingTimeAnimation)}
-              className="p-2 rounded bg-[#00ffaa] text-[#0b0c0d] hover:bg-[#00ffaa]/90 transition-colors shrink-0 cursor-pointer"
+              className="p-1.5 sm:p-2 rounded bg-[#00ffaa] text-[#0b0c0d] hover:bg-[#00ffaa]/90 transition-colors shrink-0 cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center active:scale-95"
               title={isPlayingTimeAnimation ? 'Pause Seasonal Playback' : 'Play Seasonal Flyway Motion'}
             >
-              {isPlayingTimeAnimation ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
+              {isPlayingTimeAnimation ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current" />}
             </button>
             <span className="text-xs font-mono-code text-[#edeeef]/80 uppercase tracking-wider">
-              Season: <span className="text-[#00ffaa] font-bold">{months[timePlaybackMonthIndex]}</span>
+              Month: <span className="text-[#00ffaa] font-bold">{months[timePlaybackMonthIndex]}</span>
             </span>
           </div>
 
@@ -532,7 +532,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             <span className="hidden sm:inline">Seasonal Flyway Motion</span>
             <button
               onClick={() => setTimePlaybackMonthIndex(4)}
-              className="hover:text-[#00ffaa] transition-colors flex items-center space-x-1 p-1"
+              className="hover:text-[#00ffaa] transition-colors flex items-center space-x-1 p-1 cursor-pointer min-h-[32px]"
             >
               <RefreshCw className="w-3 h-3" />
               <span>Reset</span>
@@ -548,7 +548,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             max={11}
             value={timePlaybackMonthIndex}
             onChange={(e) => setTimePlaybackMonthIndex(Number(e.target.value))}
-            className="w-full h-2 bg-[rgba(237,238,239,0.1)] rounded appearance-none cursor-pointer accent-[#00ffaa]"
+            className="w-full h-2.5 bg-[rgba(237,238,239,0.15)] rounded-lg appearance-none cursor-pointer accent-[#00ffaa]"
           />
         </div>
 
@@ -558,7 +558,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             <span
               key={m}
               onClick={() => setTimePlaybackMonthIndex(idx)}
-              className={`cursor-pointer px-0.5 py-0.5 transition-colors ${idx === timePlaybackMonthIndex ? 'text-[#00ffaa] font-bold underline' : 'hover:text-[#edeeef]'}`}
+              className={`cursor-pointer px-1 py-0.5 transition-colors rounded ${idx === timePlaybackMonthIndex ? 'text-[#00ffaa] font-bold underline bg-[#00ffaa]/10' : 'hover:text-[#edeeef]'}`}
             >
               {m}
             </span>

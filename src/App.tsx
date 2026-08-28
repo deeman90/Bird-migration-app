@@ -370,12 +370,12 @@ export default function App() {
       
       {/* Toast Notification Banner */}
       {toastMessage && (
-        <div className="fixed top-20 right-4 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="fixed top-16 sm:top-20 left-3 right-3 sm:left-auto sm:right-4 sm:max-w-md z-50 animate-in fade-in slide-in-from-top-4 duration-300">
           <div
             className={`px-4 py-3 rounded-2xl shadow-2xl border flex items-center space-x-3 backdrop-blur-md ${
               toastMessage.type === 'pro'
-                ? 'bg-amber-950/90 border-amber-500/80 text-amber-200'
-                : 'bg-emerald-950/90 border-emerald-500/80 text-emerald-200'
+                ? 'bg-amber-950/95 border-amber-500/80 text-amber-200 shadow-amber-950/50'
+                : 'bg-emerald-950/95 border-emerald-500/80 text-emerald-200 shadow-emerald-950/50'
             }`}
           >
             {toastMessage.type === 'pro' ? (
@@ -383,7 +383,7 @@ export default function App() {
             ) : (
               <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
             )}
-            <p className="text-xs font-bold leading-snug">{toastMessage.text}</p>
+            <p className="text-xs font-bold leading-snug break-words">{toastMessage.text}</p>
           </div>
         </div>
       )}
@@ -401,7 +401,7 @@ export default function App() {
       />
 
       {/* Primary View Router */}
-      <main className="flex-1 w-full">
+      <main className={`flex-1 w-full ${activeTab === 'map' ? 'pb-16 md:pb-0' : 'pb-24 md:pb-12'}`}>
         {activeTab === 'map' && (
           <InteractiveMap
             sightings={sightings}

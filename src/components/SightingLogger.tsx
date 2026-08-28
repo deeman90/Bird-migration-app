@@ -920,9 +920,10 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
               {/* Upload Button & Preset Selector */}
               <div className="md:col-span-2 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <label htmlFor="sighting-file-input" className="px-3.5 py-2 rounded bg-[#00ffaa]/10 hover:bg-[#00ffaa]/20 border border-[#00ffaa]/40 text-[#00ffaa] font-mono-code text-xs uppercase font-semibold tracking-wider flex items-center space-x-1.5 cursor-pointer transition-all">
+                  {/* File / Gallery Upload */}
+                  <label htmlFor="sighting-file-input" className="min-h-[44px] px-3.5 py-2 rounded bg-[#00ffaa]/10 hover:bg-[#00ffaa]/20 border border-[#00ffaa]/40 text-[#00ffaa] font-mono-code text-xs uppercase font-semibold tracking-wider flex items-center space-x-2 cursor-pointer transition-all active:scale-95">
                     <Upload className="w-4 h-4" />
-                    <span>Upload Image File (Extracts EXIF)</span>
+                    <span>Upload Photo / EXIF</span>
                   </label>
                   <input
                     id="sighting-file-input"
@@ -931,9 +932,21 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
                     onChange={handleImageFileChange}
                     className="hidden"
                   />
+
+                  {/* Direct Mobile Camera Capture */}
+                  <label htmlFor="sighting-camera-input" className="min-h-[44px] px-3.5 py-2 rounded bg-[rgba(237,238,239,0.06)] hover:bg-[rgba(237,238,239,0.12)] border border-[rgba(237,238,239,0.15)] text-[#edeeef] font-mono-code text-xs uppercase font-semibold tracking-wider flex items-center space-x-2 cursor-pointer transition-all active:scale-95">
+                    <Camera className="w-4 h-4 text-[#00ffaa]" />
+                    <span>Take Camera Photo</span>
+                  </label>
+                  <input
+                    id="sighting-camera-input"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleImageFileChange}
+                    className="hidden"
+                  />
                 </div>
-
-
               </div>
             </div>
 
