@@ -238,7 +238,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               phone_number: phone,
             },
             customizations: {
-              title: 'AeroTrack VIP PRO Member',
+              title: 'BMA VIP PRO Member',
               description: `Upgrade to VIP PRO (${cycle.toUpperCase()})`,
               logo: 'https://images.unsplash.com/photo-1552728089-57bdde30beb3?auto=format&fit=crop&q=80&w=100',
             },

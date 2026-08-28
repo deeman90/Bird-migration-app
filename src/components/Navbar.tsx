@@ -35,19 +35,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="flex items-center space-x-2 sm:space-x-3 cursor-pointer select-none"
               onClick={() => setActiveTab('map')}
             >
-              <div className="px-2 sm:px-2.5 h-8 sm:h-9 rounded-md bg-[#00ffaa] flex items-center justify-center text-[#0b0c0d] font-syne font-black text-xs sm:text-sm tracking-tight space-x-1 sm:space-x-1.5 shadow-sm shadow-[#00ffaa]/20">
-                <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
-                <span className="leading-none">BMA</span>
-              </div>
-              <div>
-                <div className="flex items-center space-x-1.5">
-                  <span className="font-mono-code text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#00ffaa]/10 text-[#00ffaa] border border-[#00ffaa]/30">
+              <div className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md bg-[#00ffaa] flex items-center text-[#0b0c0d] shadow-sm shadow-[#00ffaa]/20 space-x-1.5 sm:space-x-2">
+                <Compass className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.5] shrink-0" />
+                <div className="flex flex-col justify-center text-left">
+                  <span className="font-syne font-black text-xs sm:text-sm tracking-tight leading-none">BMA</span>
+                  <span className="font-mono-code text-[7px] sm:text-[8px] font-bold uppercase tracking-wider leading-none mt-0.5 opacity-90 whitespace-nowrap">
                     Bird Migration App
                   </span>
                 </div>
-                <p className="font-mono-code text-[10px] text-[#edeeef]/50 uppercase tracking-wider hidden sm:block mt-0.5">
-                  Global Flyway & Sightings Network
-                </p>
               </div>
             </div>
 

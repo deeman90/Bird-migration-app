@@ -71,17 +71,15 @@ const paymentRateLimiter = createRateLimiter(60 * 1000, 30, 'Payment request rat
 // Lazy-initialized Gemini AI client
 let aiClient: GoogleGenAI | null = null;
 
-function getGeminiClient(): GoogleGenAI {
+function getGeminiClient(): GoogleGenAI | null {
+  const apiKey =
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+    process.env.GOOGLE_AI_API_KEY;
+  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey.includes('example')) {
+    return null;
+  }
   if (!aiClient) {
-    const apiKey =
-      process.env.GEMINI_API_KEY ||
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-      process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      throw new Error(
-        'GEMINI_API_KEY (or GOOGLE_GENERATIVE_AI_API_KEY) environment variable is missing. Please add it in your Vercel Project Settings > Environment Variables or via Vercel CLI.'
-      );
-    }
     aiClient = new GoogleGenAI({
       apiKey,
     });
@@ -290,6 +288,10 @@ async function callGeminiWithFallback(
   generateParams: { contents: any; config?: any },
   primaryModel = 'gemini-3.1-flash-lite'
 ): Promise<any> {
+  if (!ai || !ai.models) {
+    return null;
+  }
+
   const candidateModels = [
     primaryModel,
     'gemini-3.1-flash-lite',

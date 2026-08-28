@@ -199,11 +199,11 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="font-mono-code text-[10px] text-[#00ffaa] uppercase tracking-widest block">AI Vision API</span>
-                <span className="bg-[#00ffaa]/10 text-[#00ffaa] text-[9px] font-mono-code px-1.5 py-0.5 rounded uppercase font-bold">Multimodal Gemini</span>
+                <span className="font-mono-code text-[10px] text-[#00ffaa] uppercase tracking-widest block">AI Vision Scanner</span>
+                <span className="bg-[#00ffaa]/10 text-[#00ffaa] text-[9px] font-mono-code px-1.5 py-0.5 rounded uppercase font-bold">Smart Species Matcher</span>
               </div>
               <h2 className="font-syne font-bold text-lg text-[#edeeef] tracking-tight">
-                AI Avian Species Identifier & API Matcher
+                AI Avian Species Identifier
               </h2>
             </div>
           </div>
@@ -315,7 +315,7 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
             ) : (
               <>
                 <Sparkles className="w-5 h-5" />
-                <span>Analyze Image & Match Bird API Database</span>
+                <span>Analyze Image & Identify Species</span>
               </>
             )}
           </button>

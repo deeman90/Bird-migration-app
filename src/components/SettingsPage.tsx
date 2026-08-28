@@ -444,7 +444,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               {name || 'Birder Observer'}
             </div>
             <div className="font-mono-code text-xs text-[#edeeef]/60 mb-4">
-              {email || 'observer@aerotrack.org'}
+              {email || 'observer@bma.io'}
             </div>
 
             <div className="space-y-0 text-xs">
@@ -557,7 +557,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="e.g. observer@aerotrack.org"
+                      placeholder="e.g. observer@bma.io"
                       className="w-full px-4 py-3 rounded bg-[rgba(237,238,239,0.06)] border border-[rgba(237,238,239,0.15)] text-sm text-[#edeeef] focus:outline-none focus:border-[#00ffaa]"
                     />
                   </div>
@@ -994,12 +994,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
                   {/* Referral Link Preview */}
                   <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-center justify-between text-xs font-mono-code text-slate-400 overflow-x-auto">
-                    <span className="truncate">https://aerotrack.bma.io/join?ref={referralCode}</span>
+                    <span className="truncate">https://bma.io/join?ref={referralCode}</span>
                     <button
                       type="button"
                       onClick={() => {
                         if (navigator.clipboard) {
-                          navigator.clipboard.writeText(`https://aerotrack.bma.io/join?ref=${referralCode}`);
+                          navigator.clipboard.writeText(`https://bma.io/join?ref=${referralCode}`);
                         }
                         setHasCopied(true);
                         setTimeout(() => setHasCopied(false), 2500);
@@ -1178,49 +1178,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   </div>
                 )}
 
-                {/* Supabase Storage RLS Security Roles Section */}
-                <div className="p-6 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                        <span>Supabase Storage Security Roles & Policies (RLS)</span>
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Row Level Security policies configured for bucket <code className="text-emerald-400 bg-slate-900 px-1.5 py-0.5 rounded font-mono text-[11px]">app-files</code> (SELECT, INSERT, UPDATE, DELETE).
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const sqlScript = `-- Supabase Storage & Database Security Policies (RLS) for 'app-files' bucket
-INSERT INTO storage.buckets (id, name, public) VALUES ('app-files', 'app-files', false) ON CONFLICT (id) DO NOTHING;
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Public & Authenticated Read Access for app-files" ON storage.objects FOR SELECT USING (bucket_id = 'app-files');
-CREATE POLICY "Authenticated User Upload to app-files" ON storage.objects FOR INSERT TO authenticated, anon WITH CHECK (bucket_id = 'app-files');
-CREATE POLICY "Owner Update Access to app-files" ON storage.objects FOR UPDATE TO authenticated, anon USING (bucket_id = 'app-files') WITH CHECK (bucket_id = 'app-files');
-CREATE POLICY "Owner Delete Access to app-files" ON storage.objects FOR DELETE TO authenticated, anon USING (bucket_id = 'app-files');`;
-                        if (navigator.clipboard) {
-                          navigator.clipboard.writeText(sqlScript);
-                        }
-                        alert('✅ Supabase Storage Security Policies SQL copied to clipboard!');
-                      }}
-                      className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 hover:border-emerald-500 text-slate-200 hover:text-emerald-400 font-mono text-[11px] font-bold flex items-center space-x-1.5 transition-all cursor-pointer self-start sm:self-auto shrink-0"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Storage SQL</span>
-                    </button>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] font-mono text-slate-300 space-y-2 overflow-x-auto">
-                    <p className="text-emerald-400 font-bold">// Configured Storage Bucket ('app-files'): Private | Limit: 100MB | MIME: JPEG, PNG, WebP, HEIC, GIF, TIFF, SVG</p>
-                    <p>• <strong className="text-cyan-400">SELECT (Read):</strong> Public & Authenticated observers can view uploaded sighting photos.</p>
-                    <p>• <strong className="text-amber-400">INSERT (Upload):</strong> Authenticated/Active users can upload field photos (strict 100MB limit & image MIME validation).</p>
-                    <p>• <strong className="text-purple-400">UPDATE (Modify):</strong> File owners can update their existing stored field images.</p>
-                    <p>• <strong className="text-red-400">DELETE (Remove):</strong> File owners can delete sighting attachments.</p>
-                  </div>
-                </div>
               </div>
             )}
 
