@@ -530,7 +530,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       longitude: lngNum,
       locationName: locationName || `Location (${latNum}, ${lngNum})`,
       region: currentUser.region,
-      timestamp: 'Just now',
+      timestamp: new Date().toISOString(),
       photoUrl: photoUrl || SAMPLE_BIRD_PHOTOS[0],
       flockCount: Math.max(1, flockCount),
       behavior,
