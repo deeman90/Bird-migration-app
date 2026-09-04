@@ -6,7 +6,7 @@ import { uploadSightingPhotoToSupabase } from '../services/sightingsService';
 import { computeImageHash, checkDuplicateImage } from '../utils/imageHasher';
 import { optimizeImageForApi } from '../utils/imageOptimizer';
 import { safeFetchJson, extractErrorMessage } from '../utils/apiClient';
-import { Camera, MapPin, Upload, Navigation, CheckCircle2, AlertCircle, Sparkles, Plus, Image as ImageIcon, Crosshair, RefreshCw, Tag, ShieldCheck, Search, ShieldAlert, AlertTriangle, Smartphone } from 'lucide-react';
+import { Camera, MapPin, Upload, Navigation, CheckCircle2, AlertCircle, Sparkles, Plus, Image as ImageIcon, Crosshair, RefreshCw, Tag, ShieldCheck, Search, ShieldAlert, AlertTriangle } from 'lucide-react';
 
 interface SightingLoggerProps {
   speciesList: BirdSpecies[];
@@ -950,67 +950,15 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
               </div>
             </div>
 
-            {/* Test Simulation Controls for Terms Violation Verification */}
-            <div className="p-3 bg-black/40 border border-[rgba(237,238,239,0.12)] rounded space-y-2">
-              <span className="font-mono-code text-[10px] text-[#edeeef]/60 uppercase tracking-widest block font-bold">
-                Image Metadata & Terms Policy Test Switcher:
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSimulatingWebDownload(false);
-                    setClientExif({
-                      hasExif: true,
-                      make: 'Apple',
-                      model: 'iPhone 15 Pro',
-                      gpsLatitude: parseFloat(latitude) || 43.6532,
-                      gpsLongitude: parseFloat(longitude) || -70.2520,
-                      dateTimeOriginal: new Date().toISOString(),
-                    });
-                  }}
-                  className={`px-3 py-1.5 rounded text-xs font-mono-code flex items-center space-x-1.5 border transition-all ${
-                    !isSimulatingWebDownload ? 'bg-[#00ffaa]/20 border-[#00ffaa] text-[#00ffaa]' : 'bg-black/30 border-white/10 text-[#edeeef]/60'
-                  }`}
-                >
-                  <Smartphone className="w-3.5 h-3.5 text-[#00ffaa]" />
-                  <span>Genuine Phone Camera EXIF (iPhone 15 Pro)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSimulatingWebDownload(true);
-                    setClientExif(null);
-                  }}
-                  className={`px-3 py-1.5 rounded text-xs font-mono-code flex items-center space-x-1.5 border transition-all ${
-                    isSimulatingWebDownload ? 'bg-rose-500/25 border-rose-500 text-rose-300 font-bold' : 'bg-black/30 border-white/10 text-[#edeeef]/60'
-                  }`}
-                >
-                  <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Downloaded Web Image (Test 3-Day Restriction)</span>
-                </button>
+            {/* Display Extracted EXIF Badge */}
+            {clientExif?.make && (
+              <div className="p-2 bg-[#00ffaa]/10 border border-[#00ffaa]/30 rounded text-[11px] font-mono-code text-[#00ffaa] flex items-center space-x-2">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <span>
+                  EXIF Metadata Verified: Camera Device <strong>{clientExif.make} {clientExif.model}</strong> • GPS Location Included
+                </span>
               </div>
-
-              {/* Display Extracted EXIF Badge */}
-              {clientExif?.make && !isSimulatingWebDownload && (
-                <div className="p-2 bg-[#00ffaa]/10 border border-[#00ffaa]/30 rounded text-[11px] font-mono-code text-[#00ffaa] flex items-center space-x-2">
-                  <ShieldCheck className="w-4 h-4 shrink-0" />
-                  <span>
-                    EXIF Metadata Verified: Camera Device <strong>{clientExif.make} {clientExif.model}</strong> • GPS Location Included
-                  </span>
-                </div>
-              )}
-
-              {isSimulatingWebDownload && (
-                <div className="p-2 bg-rose-500/10 border border-rose-500/30 rounded text-[11px] font-mono-code text-rose-300 flex items-center space-x-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span>
-                    Web Download Mode Active: Submitting this photo will trigger a 3-day account restriction for violating terms.
-                  </span>
-                </div>
-              )}
-            </div>
+            )}
 
             {/* AI Identification Button */}
             <button

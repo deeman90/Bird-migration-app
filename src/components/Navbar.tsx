@@ -1,6 +1,7 @@
 import React from 'react';
 import { User } from '../types';
 import { Navigation, Compass, PlusCircle, Users, Award, ShieldCheck, Lock, Sparkles, User as UserIcon, LogOut, Settings } from 'lucide-react';
+import { BMALogo } from './BMALogo';
 
 interface NavbarProps {
   activeTab: 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings';
@@ -32,18 +33,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             
             {/* Brand Logo */}
             <div
-              className="flex items-center space-x-2 sm:space-x-3 cursor-pointer select-none"
+              id="brand-logo-button"
+              className="flex items-center cursor-pointer select-none transition-transform active:scale-95"
               onClick={() => setActiveTab('map')}
             >
-              <div className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md bg-[#00ffaa] flex items-center text-[#0b0c0d] shadow-sm shadow-[#00ffaa]/20 space-x-1.5 sm:space-x-2">
-                <Compass className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.5] shrink-0" />
-                <div className="flex flex-col justify-center text-left">
-                  <span className="font-syne font-black text-xs sm:text-sm tracking-tight leading-none">BMA</span>
-                  <span className="font-mono-code text-[7px] sm:text-[8px] font-bold uppercase tracking-wider leading-none mt-0.5 opacity-90 whitespace-nowrap">
-                    Bird Migration App
-                  </span>
-                </div>
-              </div>
+              <BMALogo className="h-8 sm:h-9 w-auto shadow-sm shadow-[#059669]/30 rounded-xl" />
             </div>
 
             {/* Desktop Navigation Tabs */}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserTier } from '../types';
 import { supabase } from '../supabaseClient.js';
+import { fetchUserProfile, saveUserProfile } from '../services/userService.js';
 import {
   LogIn,
   UserPlus,
@@ -22,6 +23,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { INITIAL_USER_FREE, INITIAL_USER_PAID } from '../data/mockData';
+import { BMALogo } from './BMALogo';
 
 interface AuthPageProps {
   currentUser: User;
@@ -167,7 +169,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       }
 
       const loggedUser = data.user;
-      const authenticatedUser: User = {
+      let authenticatedUser: User = {
         id: loggedUser?.id || `usr_${Date.now()}`,
         name: loggedUser?.user_metadata?.name || loginEmail.split('@')[0] || 'Observer',
         email: loggedUser?.email || loginEmail,
@@ -180,6 +182,24 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         badges: ['Verified Observer', 'Flyway Pioneer'],
         joinedDate: 'July 2026',
       };
+
+      if (loggedUser?.id) {
+        try {
+          const { data: dbProfile } = await fetchUserProfile(loggedUser.id);
+          if (dbProfile) {
+            authenticatedUser = {
+              ...authenticatedUser,
+              ...dbProfile,
+              id: loggedUser.id,
+              email: dbProfile.email || loggedUser.email || authenticatedUser.email,
+              name: dbProfile.name || authenticatedUser.name,
+              avatar: dbProfile.avatar || authenticatedUser.avatar,
+            };
+          }
+        } catch {
+          // Fall back gracefully to auth metadata
+        }
+      }
 
       setSuccessMsg(`Welcome back, ${authenticatedUser.name}!`);
       setTimeout(() => {
@@ -241,6 +261,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         return;
       }
 
+      if (data?.user?.id) {
+        // Persist initial profile into public.profiles
+        saveUserProfile({
+          id: data.user.id,
+          name: signupName,
+          email: emailToPass,
+          avatar: selectedAvatar,
+          region: signupRegion,
+          tier: signupTier,
+          sightingsCount: 0,
+          rareSpeciesCount: 0,
+          points: 0,
+          badges: ['New Observer'],
+          joinedDate: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        }).catch(() => {
+          // Ignored if table trigger handles it or table not created yet
+        });
+      }
+
       // After successful signup:
       // 1) Do NOT auto-login
       // 2) Redirect to Sign In page
@@ -288,14 +327,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           <div className="absolute -right-10 -top-10 w-40 h-40 bg-emerald-500/20 rounded-full blur-2xl" />
           
           <div>
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                <Compass className="w-7 h-7 text-slate-950" />
-              </div>
-              <div>
-                <h1 className="text-xl font-black text-white tracking-tight">BMA</h1>
-                <p className="text-xs text-emerald-400 font-medium">Bird Migration App</p>
-              </div>
+            <div className="mb-6">
+              <BMALogo id="bma-auth-hero-logo" className="h-12 w-auto shadow-lg shadow-emerald-500/20 rounded-xl" />
             </div>
 
             <h2 className="text-2xl font-bold text-white mb-4 leading-tight">

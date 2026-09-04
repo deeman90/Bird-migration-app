@@ -32,6 +32,7 @@ import {
   deleteSightingInSupabase,
   fetchUserSightingsCountFromSupabase,
 } from './services/sightingsService';
+import { fetchUserProfile, saveUserProfile } from './services/userService.js';
 import { CheckCircle2, Sparkles, AlertCircle, Compass, Lock } from 'lucide-react';
 
 export default function App() {
@@ -126,6 +127,28 @@ export default function App() {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Sync user profile from Supabase profiles table
+  useEffect(() => {
+    async function loadUserProfile() {
+      const authUserId = session?.user?.id;
+      if (authUserId) {
+        const { data: dbProfile } = await fetchUserProfile(authUserId);
+        if (dbProfile) {
+          setCurrentUser((prev) => ({
+            ...prev,
+            ...dbProfile,
+            id: authUserId,
+            email: dbProfile.email || session?.user?.email || prev.email,
+            name: dbProfile.name || prev.name,
+            avatar: dbProfile.avatar || prev.avatar,
+            address: dbProfile.address || prev.address,
+          }));
+        }
+      }
+    }
+    loadUserProfile();
+  }, [session]);
 
   const isLoggedIn = !!session;
 
@@ -491,7 +514,15 @@ export default function App() {
             currentUser={currentUser}
             onSaveUser={(updatedUser) => {
               setCurrentUser(updatedUser);
-              showToast('✓ Profile and personal address saved successfully!', 'success');
+              saveUserProfile(updatedUser).then(({ isTableMissing, error }) => {
+                if (isTableMissing) {
+                  showToast('✓ Saved locally. Execute create_user_profiles_table.sql in Supabase SQL editor to enable cloud DB.', 'success');
+                } else if (error) {
+                  showToast('✓ Profile updated locally.', 'success');
+                } else {
+                  showToast('✓ Personal profile, photo and address synced with Supabase!', 'success');
+                }
+              });
             }}
             onToggleUserTier={handleToggleUserTier}
             onLogout={handleLogout}

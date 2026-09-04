@@ -8,7 +8,7 @@ export interface UploadResult {
   error: any;
 }
 
-export const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB limit
+export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB limit
 export const ALLOWED_IMAGE_MIME_TYPES = [
   'image/jpeg',
   'image/png',
@@ -35,10 +35,10 @@ export async function uploadFileToSupabaseStorage({
   itemId?: string;
 }): Promise<UploadResult> {
   try {
-    // 1. Strict 100MB file size limit check
+    // 1. Strict 50MB file size limit check
     if (file.size > MAX_FILE_SIZE_BYTES) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-      const errorMsg = `File size (${sizeMB}MB) exceeds the maximum allowed limit of 100MB.`;
+      const errorMsg = `File size (${sizeMB}MB) exceeds the maximum allowed limit of 50MB.`;
       console.warn(errorMsg);
       return { filePath: null, signedUrl: null, error: new Error(errorMsg) };
     }
