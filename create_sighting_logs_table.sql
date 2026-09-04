@@ -112,6 +112,118 @@ SELECT
   created_at
 FROM public.sighting_logs;
 
+-- Triggers to handle INSTEAD OF INSERT, UPDATE, and DELETE on the sightings view
+CREATE OR REPLACE FUNCTION public.sightings_view_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.sighting_logs (
+    id, user_id, user_name, user_avatar, user_tier,
+    species_id, bird_species, scientific_name,
+    latitude, longitude, place_name, region,
+    sighting_date, bird_image, number_of_birds,
+    device_type, points_earned, user_sightings_count,
+    behavior, field_notes, verified, likes_count, comments,
+    weather, image_meta_data
+  ) VALUES (
+    COALESCE(NEW.id, gen_random_uuid()),
+    COALESCE(NEW.user_id, auth.uid()::text, 'usr_anon'),
+    COALESCE(NEW.user_name, 'Observer'),
+    NEW.user_avatar,
+    COALESCE(NEW.user_tier, 'free'),
+    NEW.species_id,
+    COALESCE(NEW.species_name, 'Migratory Bird'),
+    NEW.scientific_name,
+    COALESCE(NEW.latitude, 0.0),
+    COALESCE(NEW.longitude, 0.0),
+    COALESCE(NEW.location_name, 'Field Observation Site'),
+    COALESCE(NEW.region, 'Global'),
+    COALESCE(NEW.timestamp, NOW()),
+    COALESCE(NEW.photo_url, 'https://images.unsplash.com/photo-1551085254-e96b210df58a'),
+    COALESCE(NEW.flock_count, 1),
+    COALESCE(NEW.device_type, 'Mobile Smartphone Camera'),
+    COALESCE(NEW.points_earned, 100),
+    COALESCE(NEW.user_sightings_count, 1),
+    COALESCE(NEW.behavior, 'flying'),
+    NEW.notes,
+    COALESCE(NEW.verified, FALSE),
+    COALESCE(NEW.likes_count, 0),
+    COALESCE(NEW.comments, '[]'::jsonb),
+    NEW.weather,
+    NEW.image_meta_data
+  )
+  RETURNING
+    id, user_id, user_name, user_avatar, user_tier,
+    species_id, bird_species, scientific_name,
+    latitude, longitude, place_name, region,
+    sighting_date, bird_image, number_of_birds,
+    device_type, points_earned, user_sightings_count,
+    behavior, field_notes, verified, likes_count, comments,
+    weather, image_meta_data, created_at
+  INTO
+    NEW.id, NEW.user_id, NEW.user_name, NEW.user_avatar, NEW.user_tier,
+    NEW.species_id, NEW.species_name, NEW.scientific_name,
+    NEW.latitude, NEW.longitude, NEW.location_name, NEW.region,
+    NEW.timestamp, NEW.photo_url, NEW.flock_count,
+    NEW.device_type, NEW.points_earned, NEW.user_sightings_count,
+    NEW.behavior, NEW.notes, NEW.verified, NEW.likes_count, NEW.comments,
+    NEW.weather, NEW.image_meta_data, NEW.created_at;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sightings_view_insert ON public.sightings;
+CREATE TRIGGER trg_sightings_view_insert
+INSTEAD OF INSERT ON public.sightings
+FOR EACH ROW
+EXECUTE FUNCTION public.sightings_view_insert();
+
+CREATE OR REPLACE FUNCTION public.sightings_view_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE public.sighting_logs
+  SET
+    user_name = COALESCE(NEW.user_name, user_name),
+    user_avatar = COALESCE(NEW.user_avatar, user_avatar),
+    user_tier = COALESCE(NEW.user_tier, user_tier),
+    bird_species = COALESCE(NEW.species_name, bird_species),
+    scientific_name = COALESCE(NEW.scientific_name, scientific_name),
+    latitude = COALESCE(NEW.latitude, latitude),
+    longitude = COALESCE(NEW.longitude, longitude),
+    place_name = COALESCE(NEW.location_name, place_name),
+    region = COALESCE(NEW.region, region),
+    bird_image = COALESCE(NEW.photo_url, bird_image),
+    number_of_birds = COALESCE(NEW.flock_count, number_of_birds),
+    likes_count = COALESCE(NEW.likes_count, likes_count),
+    comments = COALESCE(NEW.comments, comments),
+    field_notes = COALESCE(NEW.notes, field_notes),
+    verified = COALESCE(NEW.verified, verified),
+    weather = COALESCE(NEW.weather, weather),
+    updated_at = NOW()
+  WHERE id = OLD.id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sightings_view_update ON public.sightings;
+CREATE TRIGGER trg_sightings_view_update
+INSTEAD OF UPDATE ON public.sightings
+FOR EACH ROW
+EXECUTE FUNCTION public.sightings_view_update();
+
+CREATE OR REPLACE FUNCTION public.sightings_view_delete()
+RETURNS TRIGGER AS $$
+BEGIN
+  DELETE FROM public.sighting_logs WHERE id = OLD.id;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sightings_view_delete ON public.sightings;
+CREATE TRIGGER trg_sightings_view_delete
+INSTEAD OF DELETE ON public.sightings
+FOR EACH ROW
+EXECUTE FUNCTION public.sightings_view_delete();
+
 -- 5. Row Level Security (RLS) Policies
 ALTER TABLE public.sighting_logs ENABLE ROW LEVEL SECURITY;
 
@@ -143,3 +255,19 @@ USING (
 WITH CHECK (
   auth.uid()::text = user_id OR user_id IS NOT NULL
 );
+
+-- Policy D: DELETE (Observers can delete their own logged sightings)
+DROP POLICY IF EXISTS "Observers Can Delete Own Sightings" ON public.sighting_logs;
+CREATE POLICY "Observers Can Delete Own Sightings"
+ON public.sighting_logs
+FOR DELETE
+TO authenticated, anon
+USING (
+  auth.uid()::text = user_id OR user_id IS NOT NULL
+);
+
+-- 7. Grant schema permissions to standard Supabase client roles
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.sighting_logs TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.sightings TO anon, authenticated, service_role;
+

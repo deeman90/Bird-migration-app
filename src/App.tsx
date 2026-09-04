@@ -88,6 +88,7 @@ export default function App() {
 
   // Notification Toast State
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'pro' } | null>(null);
+  const [isRefreshingSightings, setIsRefreshingSightings] = useState<boolean>(false);
 
   const showToast = (text: string, type: 'success' | 'pro' = 'success') => {
     setToastMessage({ text, type });
@@ -236,13 +237,50 @@ export default function App() {
   // Load sightings from Supabase
   useEffect(() => {
     async function loadData() {
-      const { data } = await fetchSightingsFromSupabase();
-      if (data && data.length > 0) {
+      const { data, error } = await fetchSightingsFromSupabase();
+      if (!error && data && data.length > 0) {
         setSightings(data);
       }
     }
     loadData();
   }, [session]);
+
+  // Realtime subscription: keep sightings in sync across tabs or external database modifications
+  useEffect(() => {
+    const channel = supabase
+      .channel('supabase-sightings-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sighting_logs' },
+        async () => {
+          const { data } = await fetchSightingsFromSupabase();
+          if (data) setSightings(data);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Force Refresh Sightings from Supabase Table
+  const handleRefreshSightings = async () => {
+    setIsRefreshingSightings(true);
+    try {
+      const { data, error } = await fetchSightingsFromSupabase();
+      if (!error && data) {
+        setSightings(data);
+        showToast(`✓ Refreshed ${data.length} observations from Supabase database table!`, 'success');
+      } else if (error) {
+        showToast(`Notice: ${error.message || 'Could not fetch cloud sightings'}`, 'pro');
+      }
+    } catch (err: any) {
+      showToast('Error syncing sightings table: ' + (err?.message || 'unknown error'), 'pro');
+    } finally {
+      setIsRefreshingSightings(false);
+    }
+  };
 
   // Add Sighting Handler
   const handleAddSighting = (newSighting: Sighting) => {
@@ -257,10 +295,13 @@ export default function App() {
 
     setSightings((prev) => [sightingWithUser, ...prev]);
 
-    // Save to Supabase
-    createSightingInSupabase(sightingWithUser).then(({ data }) => {
+    // Save to Supabase (view or sighting_logs table fallback)
+    createSightingInSupabase(sightingWithUser).then(({ data, error }) => {
       if (data) {
         setSightings((prev) => prev.map((item) => (item.id === sightingWithUser.id ? data : item)));
+        showToast('✓ Sighting persisted to Supabase database table!', 'success');
+      } else if (error) {
+        console.warn('Supabase sighting persist warning:', error.message);
       }
     });
 
@@ -468,12 +509,15 @@ export default function App() {
           <CommunityFeed
             sightings={sightings}
             currentUser={currentUser}
+            sessionUserId={session?.user?.id}
             onLikeSighting={handleLikeSighting}
             onDeleteSighting={handleDeleteSighting}
             onAddComment={handleAddComment}
             onJumpToMapSighting={handleJumpToMapSighting}
             onOpenLogModal={() => setActiveTab('log')}
             onUpgradeToPro={handleToggleUserTier}
+            onRefreshSightings={handleRefreshSightings}
+            isRefreshingSightings={isRefreshingSightings}
           />
         )}
 

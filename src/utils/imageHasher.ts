@@ -88,22 +88,40 @@ export async function checkDuplicateImage({
     const newHash = await computeImageHash(imageInput);
     const canonicalInputUrl = typeof imageInput === 'string' ? getCanonicalPhotoUrl(imageInput) : '';
 
-    // 2. Check in-memory existing sightings
+    // Check if image is one of the built-in demo/preset bird photos (exempt from duplicate lock)
+    const isBuiltInSamplePhoto =
+      canonicalInputUrl &&
+      (canonicalInputUrl.includes('photo-1551085254') ||
+        canonicalInputUrl.includes('photo-1606567595') ||
+        canonicalInputUrl.includes('photo-1618172193') ||
+        canonicalInputUrl.includes('photo-1596704017') ||
+        canonicalInputUrl.includes('photo-1520808663') ||
+        canonicalInputUrl.includes('photo-1518709268') ||
+        canonicalInputUrl.includes('photo-1579899338'));
+
+    if (isBuiltInSamplePhoto) {
+      return { isDuplicate: false };
+    }
+
+    // 2. Check in-memory existing sightings for the SAME user
     for (const sighting of existingSightings) {
       const isSameUser =
         sighting.userId === currentUserId ||
         (sighting.userId && currentUserId && sighting.userId.toLowerCase() === currentUserId.toLowerCase());
 
+      if (!isSameUser) continue;
+
       const existingCanonicalUrl = getCanonicalPhotoUrl(sighting.photoUrl || '');
       const existingHash = sighting.imageMetaData?.imageHash || sighting.imageHash;
 
       // Match by SHA-256 hash or canonical photo URL
-      const hashMatch = newHash && existingHash && newHash === existingHash;
-      const urlMatch =
+      const hashMatch = Boolean(newHash && existingHash && newHash === existingHash);
+      const urlMatch = Boolean(
         canonicalInputUrl &&
         existingCanonicalUrl &&
         canonicalInputUrl === existingCanonicalUrl &&
-        canonicalInputUrl.length > 10;
+        canonicalInputUrl.length > 10
+      );
 
       if (hashMatch || urlMatch) {
         return {
