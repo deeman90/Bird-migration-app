@@ -32,20 +32,54 @@ import {
   deleteSightingInSupabase,
   fetchUserSightingsCountFromSupabase,
 } from './services/sightingsService';
-import { fetchUserProfile, saveUserProfile } from './services/userService.js';
 import { CheckCircle2, Sparkles, AlertCircle, Compass, Lock } from 'lucide-react';
+
+// Safe localStorage helpers that prevent JSON parse crashes and QuotaExceededError
+function getSafeStorageItem<T>(key: string, fallback: T): T {
+  try {
+    const saved = localStorage.getItem(key);
+    if (!saved || saved === 'undefined' || saved === 'null') return fallback;
+    const parsed = JSON.parse(saved);
+    return parsed !== null && parsed !== undefined ? parsed : fallback;
+  } catch (err) {
+    console.warn(`Failed to parse ${key} from localStorage:`, err);
+    return fallback;
+  }
+}
+
+function setSafeStorageItem(key: string, value: any): void {
+  try {
+    // If it's an array of sightings, avoid storing massive base64 images that trigger QuotaExceededError
+    if (key === 'aerotrack_sightings' && Array.isArray(value)) {
+      const sanitized = value.slice(0, 50).map((s) => ({
+        ...s,
+        photoUrl: (typeof s.photoUrl === 'string' && s.photoUrl.startsWith('data:') && s.photoUrl.length > 50000)
+          ? '' // Strip huge local data URLs from localStorage to prevent DOMException QuotaExceeded
+          : s.photoUrl,
+      }));
+      localStorage.setItem(key, JSON.stringify(sanitized));
+      return;
+    }
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.warn(`Failed to write ${key} to localStorage (quota or security restriction):`, err);
+  }
+}
 
 export default function App() {
   // Navigation State
   const [activeTab, setActiveTab] = useState<'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings'>('map');
 
-  // App Core Data States with localStorage persistence
+  // App Core Data States with safe localStorage persistence
   const [currentUser, setCurrentUser] = useState<User>(() => {
-    const saved = localStorage.getItem('aerotrack_user');
-    const user = saved ? JSON.parse(saved) : INITIAL_USER_FREE;
-    delete user.restrictedUntil;
-    delete user.restrictionReason;
-    return user;
+    const parsed = getSafeStorageItem<User | null>('aerotrack_user', null);
+    if (parsed && typeof parsed === 'object') {
+      const cleaned = { ...INITIAL_USER_FREE, ...parsed };
+      delete cleaned.restrictedUntil;
+      delete cleaned.restrictionReason;
+      return cleaned;
+    }
+    return INITIAL_USER_FREE;
   });
 
   // Ensure any cached suspension is cleared for testing
@@ -61,13 +95,19 @@ export default function App() {
   }, []);
 
   const [sightings, setSightings] = useState<Sighting[]>(() => {
-    const saved = localStorage.getItem('aerotrack_sightings');
-    return saved ? JSON.parse(saved) : INITIAL_SIGHTINGS;
+    const parsed = getSafeStorageItem<Sighting[] | null>('aerotrack_sightings', null);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
+    }
+    return INITIAL_SIGHTINGS;
   });
 
   const [rewardMilestones, setRewardMilestones] = useState<RewardMilestone[]>(() => {
-    const saved = localStorage.getItem('aerotrack_rewards');
-    return saved ? JSON.parse(saved) : REWARD_MILESTONES;
+    const parsed = getSafeStorageItem<RewardMilestone[] | null>('aerotrack_rewards', null);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
+    }
+    return REWARD_MILESTONES;
   });
 
   // Map Picker State
@@ -88,7 +128,6 @@ export default function App() {
 
   // Notification Toast State
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'pro' } | null>(null);
-  const [isRefreshingSightings, setIsRefreshingSightings] = useState<boolean>(false);
 
   const showToast = (text: string, type: 'success' | 'pro' = 'success') => {
     setToastMessage({ text, type });
@@ -97,19 +136,19 @@ export default function App() {
     }, 4500);
   };
 
-  // Persist User
+  // Persist User Safely
   useEffect(() => {
-    localStorage.setItem('aerotrack_user', JSON.stringify(currentUser));
+    setSafeStorageItem('aerotrack_user', currentUser);
   }, [currentUser]);
 
-  // Persist Sightings
+  // Persist Sightings Safely
   useEffect(() => {
-    localStorage.setItem('aerotrack_sightings', JSON.stringify(sightings));
+    setSafeStorageItem('aerotrack_sightings', sightings);
   }, [sightings]);
 
-  // Persist Rewards
+  // Persist Rewards Safely
   useEffect(() => {
-    localStorage.setItem('aerotrack_rewards', JSON.stringify(rewardMilestones));
+    setSafeStorageItem('aerotrack_rewards', rewardMilestones);
   }, [rewardMilestones]);
 
   // Auth Session State
@@ -129,28 +168,6 @@ export default function App() {
     };
   }, []);
 
-  // Sync user profile from Supabase profiles table
-  useEffect(() => {
-    async function loadUserProfile() {
-      const authUserId = session?.user?.id;
-      if (authUserId) {
-        const { data: dbProfile } = await fetchUserProfile(authUserId);
-        if (dbProfile) {
-          setCurrentUser((prev) => ({
-            ...prev,
-            ...dbProfile,
-            id: authUserId,
-            email: dbProfile.email || session?.user?.email || prev.email,
-            name: dbProfile.name || prev.name,
-            avatar: dbProfile.avatar || prev.avatar,
-            address: dbProfile.address || prev.address,
-          }));
-        }
-      }
-    }
-    loadUserProfile();
-  }, [session]);
-
   const isLoggedIn = !!session;
 
   const handleLogout = async () => {
@@ -160,12 +177,12 @@ export default function App() {
     setActiveTab('auth');
   };
 
-  // Protect private pages with supabase.auth.getSession() — if no session, redirect to /login
+  // Protect private pages with supabase.auth.getSession() — if no session and no active user, redirect to /login
   useEffect(() => {
     const privatePages = ['settings', 'log'];
     if (privatePages.includes(activeTab)) {
       supabase.auth.getSession().then(({ data }) => {
-        if (!data?.session) {
+        if (!data?.session && (!currentUser || !currentUser.id)) {
           showToast('Please sign in to access this page.', 'success');
           setActiveTab('auth');
           if (typeof window !== 'undefined') {
@@ -174,7 +191,7 @@ export default function App() {
         }
       });
     }
-  }, [activeTab]);
+  }, [activeTab, currentUser]);
 
   // Toggle User Tier / Open Paystack & Flutterwave Payment Modal
   const handleToggleUserTier = () => {
@@ -208,79 +225,75 @@ export default function App() {
   // Sync user sightings count from Supabase database
   useEffect(() => {
     async function syncSightingsCount() {
-      const { data: authData } = await supabase.auth.getUser();
-      const authUserId = authData?.user?.id;
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const authUserId = authData?.user?.id;
 
-      if (authUserId) {
-        const { count, error } = await supabase
-          .from('sightings')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', authUserId);
+        if (authUserId) {
+          const { count, error } = await supabase
+            .from('sightings')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', authUserId);
 
-        if (!error && count !== null) {
-          setCurrentUser((prev) => (prev.sightingsCount === count ? prev : { ...prev, sightingsCount: count }));
-          return;
+          if (!error && count !== null && count !== undefined) {
+            setCurrentUser((prev) => (prev.sightingsCount === count ? prev : { ...prev, sightingsCount: count }));
+            return;
+          }
         }
-      }
 
-      // Fallback for local state when offline or unauthenticated
-      const activeUserId = authUserId || currentUser.id;
-      const userSightings = sightings.filter(
-        (s) => s.userId === activeUserId || (s.userName && s.userName.toLowerCase() === currentUser.name.toLowerCase())
-      );
-      setCurrentUser((prev) => (prev.sightingsCount === userSightings.length ? prev : { ...prev, sightingsCount: userSightings.length }));
+        // Fallback for local state when offline or unauthenticated
+        const activeUserId = authUserId || currentUser?.id;
+        const currentName = (currentUser?.name || '').trim().toLowerCase();
+        const userSightings = sightings.filter(
+          (s) => (activeUserId && s.userId === activeUserId) || (currentName && s.userName && s.userName.trim().toLowerCase() === currentName)
+        );
+        setCurrentUser((prev) => (prev.sightingsCount === userSightings.length ? prev : { ...prev, sightingsCount: userSightings.length }));
+      } catch (err) {
+        console.warn('Sync sightings count error:', err);
+      }
     }
 
     syncSightingsCount();
-  }, [session, sightings]);
+  }, [session, sightings, currentUser?.id, currentUser?.name]);
 
-  // Load sightings from Supabase
+  // Load sightings from Supabase with safe merge and fallback preservation
   useEffect(() => {
     async function loadData() {
-      const { data, error } = await fetchSightingsFromSupabase();
-      if (!error && data && data.length > 0) {
-        setSightings(data);
+      try {
+        const { data } = await fetchSightingsFromSupabase();
+        if (data && Array.isArray(data) && data.length > 0) {
+          setSightings((prev) => {
+            const map = new Map<string, Sighting>();
+            // 1. Load initial/local sightings
+            (prev || []).forEach((s) => {
+              if (s && s.id) map.set(s.id, s);
+            });
+            // 2. Add or update with remote Supabase sightings
+            data.forEach((remoteSighting) => {
+              if (remoteSighting && remoteSighting.id) {
+                // Ensure all fields are normalized and safe against undefined/null values
+                const safeRemote: Sighting = {
+                  ...remoteSighting,
+                  speciesName: remoteSighting.speciesName || 'Migratory Bird',
+                  scientificName: remoteSighting.scientificName || 'Aves spp.',
+                  locationName: remoteSighting.locationName || 'Flyway Waypoint',
+                  userName: remoteSighting.userName || 'Observer',
+                  comments: Array.isArray(remoteSighting.comments) ? remoteSighting.comments : [],
+                  latitude: Number(remoteSighting.latitude) || 0,
+                  longitude: Number(remoteSighting.longitude) || 0,
+                };
+                map.set(remoteSighting.id, safeRemote);
+              }
+            });
+            return Array.from(map.values());
+          });
+        }
+      } catch (err) {
+        console.warn('Load sightings notice:', err);
       }
     }
     loadData();
   }, [session]);
-
-  // Realtime subscription: keep sightings in sync across tabs or external database modifications
-  useEffect(() => {
-    const channel = supabase
-      .channel('supabase-sightings-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'sighting_logs' },
-        async () => {
-          const { data } = await fetchSightingsFromSupabase();
-          if (data) setSightings(data);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  // Force Refresh Sightings from Supabase Table
-  const handleRefreshSightings = async () => {
-    setIsRefreshingSightings(true);
-    try {
-      const { data, error } = await fetchSightingsFromSupabase();
-      if (!error && data) {
-        setSightings(data);
-        showToast(`✓ Refreshed ${data.length} observations from Supabase database table!`, 'success');
-      } else if (error) {
-        showToast(`Notice: ${error.message || 'Could not fetch cloud sightings'}`, 'pro');
-      }
-    } catch (err: any) {
-      showToast('Error syncing sightings table: ' + (err?.message || 'unknown error'), 'pro');
-    } finally {
-      setIsRefreshingSightings(false);
-    }
-  };
 
   // Add Sighting Handler
   const handleAddSighting = (newSighting: Sighting) => {
@@ -295,13 +308,10 @@ export default function App() {
 
     setSightings((prev) => [sightingWithUser, ...prev]);
 
-    // Save to Supabase (view or sighting_logs table fallback)
-    createSightingInSupabase(sightingWithUser).then(({ data, error }) => {
+    // Save to Supabase
+    createSightingInSupabase(sightingWithUser).then(({ data }) => {
       if (data) {
         setSightings((prev) => prev.map((item) => (item.id === sightingWithUser.id ? data : item)));
-        showToast('✓ Sighting persisted to Supabase database table!', 'success');
-      } else if (error) {
-        console.warn('Supabase sighting persist warning:', error.message);
       }
     });
 
@@ -509,15 +519,12 @@ export default function App() {
           <CommunityFeed
             sightings={sightings}
             currentUser={currentUser}
-            sessionUserId={session?.user?.id}
             onLikeSighting={handleLikeSighting}
             onDeleteSighting={handleDeleteSighting}
             onAddComment={handleAddComment}
             onJumpToMapSighting={handleJumpToMapSighting}
             onOpenLogModal={() => setActiveTab('log')}
             onUpgradeToPro={handleToggleUserTier}
-            onRefreshSightings={handleRefreshSightings}
-            isRefreshingSightings={isRefreshingSightings}
           />
         )}
 
@@ -558,15 +565,7 @@ export default function App() {
             currentUser={currentUser}
             onSaveUser={(updatedUser) => {
               setCurrentUser(updatedUser);
-              saveUserProfile(updatedUser).then(({ isTableMissing, error }) => {
-                if (isTableMissing) {
-                  showToast('✓ Saved locally. Execute create_user_profiles_table.sql in Supabase SQL editor to enable cloud DB.', 'success');
-                } else if (error) {
-                  showToast('✓ Profile updated locally.', 'success');
-                } else {
-                  showToast('✓ Personal profile, photo and address synced with Supabase!', 'success');
-                }
-              });
+              showToast('✓ Profile and personal address saved successfully!', 'success');
             }}
             onToggleUserTier={handleToggleUserTier}
             onLogout={handleLogout}

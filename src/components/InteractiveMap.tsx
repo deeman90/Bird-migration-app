@@ -48,55 +48,84 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [mapTileStyle, setMapTileStyle] = useState<'dark' | 'satellite' | 'topo'>('dark');
 
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const currentUserName = (currentUser?.name || '').trim().toLowerCase();
 
   // Available unique regions
   const availableRegions = Array.from(
     new Set(
-      sightings
-        .map((s) => s.region || s.locationName.split(',').pop()?.trim())
+      (sightings || [])
+        .map((s) => s.region || (s.locationName ? s.locationName.split(',').pop()?.trim() : ''))
         .filter(Boolean) as string[]
     )
   ).sort();
 
   // Initialize Map
   useEffect(() => {
-    if (!mapContainerRef.current || mapInstanceRef.current) return;
+    if (!mapContainerRef.current) return;
 
-    // Default center globally focused
-    const map = L.map(mapContainerRef.current, {
-      center: [25, 0],
-      zoom: 3,
-      minZoom: 2,
-      maxZoom: 18,
-      zoomControl: false,
-    });
-
-    L.control.zoom({ position: 'topright' }).addTo(map);
-
-    // Initial Tile Layer
-    const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 19,
-    });
-    darkTiles.addTo(map);
-
-    markersLayerRef.current = L.layerGroup().addTo(map);
-    routesLayerRef.current = L.layerGroup().addTo(map);
-
-    mapInstanceRef.current = map;
-
-    // Resize observer
-    const resizeObserver = new ResizeObserver(() => {
-      map.invalidateSize();
-    });
-    resizeObserver.observe(mapContainerRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-      map.remove();
+    // Prevent Leaflet container already initialized error on re-renders / tab switches
+    if ((mapContainerRef.current as any)._leaflet_id) {
+      delete (mapContainerRef.current as any)._leaflet_id;
+    }
+    if (mapInstanceRef.current) {
+      try {
+        mapInstanceRef.current.remove();
+      } catch (e) {
+        console.warn('Map cleanup error before reinit:', e);
+      }
       mapInstanceRef.current = null;
-    };
+    }
+
+    try {
+      // Default center globally focused
+      const map = L.map(mapContainerRef.current, {
+        center: [25, 0],
+        zoom: 3,
+        minZoom: 2,
+        maxZoom: 18,
+        zoomControl: false,
+      });
+
+      L.control.zoom({ position: 'topright' }).addTo(map);
+
+      // Initial Tile Layer
+      const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 19,
+      });
+      darkTiles.addTo(map);
+
+      markersLayerRef.current = L.layerGroup().addTo(map);
+      routesLayerRef.current = L.layerGroup().addTo(map);
+
+      mapInstanceRef.current = map;
+
+      // Resize observer
+      const resizeObserver = new ResizeObserver(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      });
+      resizeObserver.observe(mapContainerRef.current);
+
+      return () => {
+        resizeObserver.disconnect();
+        if (mapInstanceRef.current) {
+          try {
+            mapInstanceRef.current.remove();
+          } catch (e) {
+            console.warn('Map unmount cleanup error:', e);
+          }
+          mapInstanceRef.current = null;
+        }
+        if (mapContainerRef.current && (mapContainerRef.current as any)._leaflet_id) {
+          delete (mapContainerRef.current as any)._leaflet_id;
+        }
+      };
+    } catch (mapErr) {
+      console.error('Leaflet initialization error:', mapErr);
+    }
   }, []);
 
   // Handle Tile Style changes
@@ -235,18 +264,25 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
 
     // 2. Render Sightings (Free users can ONLY view their own bird log sightings)
-    const isFreeUser = currentUser.tier === 'free';
+    const isFreeUser = currentUser?.tier === 'free';
+    const currentName = (currentUser?.name || '').trim().toLowerCase();
     const accessibleSightings = isFreeUser
-      ? sightings.filter((s) => s.userId === currentUser.id || s.userName.toLowerCase() === currentUser.name.toLowerCase())
-      : sightings;
+      ? (sightings || []).filter((s) => s && (s.userId === currentUser?.id || (currentName && s.userName && s.userName.trim().toLowerCase() === currentName)))
+      : (sightings || []);
 
     if (showSightings) {
       accessibleSightings.forEach((s) => {
+        if (!s) return;
+        const lat = Number(s.latitude);
+        const lng = Number(s.longitude);
+        if (isNaN(lat) || isNaN(lng)) return;
+
         if (selectedSpeciesFilter !== 'All' && s.speciesId !== selectedSpeciesFilter) return;
+        const locName = s.locationName || '';
         if (
           selectedRegionFilter !== 'All' &&
           s.region !== selectedRegionFilter &&
-          !s.locationName.toLowerCase().includes(selectedRegionFilter.toLowerCase())
+          !locName.toLowerCase().includes(selectedRegionFilter.toLowerCase())
         ) {
           return;
         }
@@ -262,26 +298,26 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           iconAnchor: [14, 14],
         });
 
-        const marker = L.marker([s.latitude, s.longitude], { icon: sightingIcon });
+        const marker = L.marker([lat, lng], { icon: sightingIcon });
 
         const popupContent = document.createElement('div');
         popupContent.className = 'p-1 text-slate-900 max-w-xs';
         popupContent.innerHTML = `
           <div class="relative">
-            <img src="${s.photoUrl}" alt="${s.speciesName}" class="w-full h-28 object-cover rounded-lg mb-2" />
+            <img src="${s.photoUrl || ''}" alt="${s.speciesName || 'Bird'}" class="w-full h-28 object-cover rounded-lg mb-2" />
             <span class="absolute top-1 right-1 bg-slate-950/80 text-emerald-400 text-[10px] font-bold px-1.5 py-0.5 rounded">
-              Flock: ${s.flockCount}
+              Flock: ${s.flockCount || 1}
             </span>
           </div>
-          <h4 class="font-bold text-sm text-slate-900">${s.speciesName}</h4>
-          <p class="text-xs text-slate-500 italic">${s.scientificName}</p>
+          <h4 class="font-bold text-sm text-slate-900">${s.speciesName || 'Bird'}</h4>
+          <p class="text-xs text-slate-500 italic">${s.scientificName || ''}</p>
           <div class="mt-1 flex items-center justify-between text-xs text-slate-600 border-t pt-1 border-slate-200">
-            <span>📍 ${s.locationName}</span>
+            <span>📍 ${s.locationName || 'Unknown Location'}</span>
           </div>
-          <p class="text-xs text-slate-700 mt-1 line-clamp-2">${s.notes}</p>
+          <p class="text-xs text-slate-700 mt-1 line-clamp-2">${s.notes || ''}</p>
           <div class="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-            <span>By ${s.userName}</span>
-            <span>${s.timestamp}</span>
+            <span>By ${s.userName || 'Observer'}</span>
+            <span>${s.timestamp || ''}</span>
           </div>
         `;
 
@@ -297,7 +333,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     // 3. Render Hotspots (With VIP Lock logic)
     if (showHotspots) {
       hotspots.forEach((hs) => {
-        const isUserPaid = currentUser.tier === 'paid';
+        if (!hs) return;
+        const lat = Number(hs.latitude);
+        const lng = Number(hs.longitude);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const isUserPaid = currentUser?.tier === 'paid';
         const isLockedForFreeUser = hs.isExclusive && !isUserPaid;
 
         const hotspotIcon = L.divIcon({
@@ -426,9 +467,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             <span className="w-1.5 h-1.5 rounded-full bg-[#00ffaa] inline-block"></span>
             <span>
               Sightings (
-              {currentUser.tier === 'free'
-                ? sightings.filter((s) => s.userId === currentUser.id || s.userName.toLowerCase() === currentUser.name.toLowerCase()).length
-                : sightings.length}
+              {currentUser?.tier === 'free'
+                ? (sightings || []).filter((s) => s && (s.userId === currentUser?.id || (currentUserName && s.userName && s.userName.trim().toLowerCase() === currentUserName))).length
+                : (sightings || []).length}
               )
             </span>
           </button>

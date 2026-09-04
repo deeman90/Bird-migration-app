@@ -125,7 +125,12 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
 
       if (!json.success || !json.data) {
         // Fallback to closest database species if available to prevent blocking user
-        const matched = speciesList.find((s) => imageToAnalyze.toLowerCase().includes(s.commonName.toLowerCase().split(' ')[0])) || speciesList[0];
+        const imgStr = typeof imageToAnalyze === 'string' ? imageToAnalyze.toLowerCase() : '';
+        const matched = speciesList.find((s) => {
+          if (!s || !s.commonName) return false;
+          const token = s.commonName.toLowerCase().split(' ')[0];
+          return token && imgStr.includes(token);
+        }) || speciesList[0];
         if (matched) {
           setAiResult({
             commonName: matched.commonName,

@@ -1,54 +1,28 @@
 import React, { useState } from 'react';
 import { Sighting, User } from '../types';
-import { 
-  Heart, 
-  MessageSquare, 
-  MapPin, 
-  Search, 
-  Filter, 
-  ShieldCheck, 
-  Sparkles, 
-  Share2, 
-  PlusCircle, 
-  UserCheck, 
-  CheckCircle2, 
-  Lock, 
-  Trash2,
-  Table,
-  LayoutGrid,
-  RefreshCw,
-  Database
-} from 'lucide-react';
-import { SightingsTable } from './SightingsTable';
+import { Heart, MessageSquare, MapPin, Search, Filter, ShieldCheck, Sparkles, Share2, PlusCircle, UserCheck, CheckCircle2, Lock, Trash2 } from 'lucide-react';
 
 interface CommunityFeedProps {
   sightings: Sighting[];
   currentUser: User;
-  sessionUserId?: string;
   onLikeSighting: (id: string) => void;
   onDeleteSighting?: (id: string) => void;
   onAddComment: (sightingId: string, commentText: string) => void;
   onJumpToMapSighting: (sighting: Sighting) => void;
   onOpenLogModal: () => void;
   onUpgradeToPro?: () => void;
-  onRefreshSightings?: () => Promise<void>;
-  isRefreshingSightings?: boolean;
 }
 
 export const CommunityFeed: React.FC<CommunityFeedProps> = ({
   sightings,
   currentUser,
-  sessionUserId,
   onLikeSighting,
   onDeleteSighting,
   onAddComment,
   onJumpToMapSighting,
   onOpenLogModal,
   onUpgradeToPro,
-  onRefreshSightings,
-  isRefreshingSightings = false,
 }) => {
-  const [viewMode, setViewMode] = useState<'table' | 'feed'>('table');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedSpecies, setSelectedSpecies] = useState<string>('All');
   const [selectedRegion, setSelectedRegion] = useState<string>('All');
@@ -57,20 +31,22 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
   const [copiedSightingId, setCopiedSightingId] = useState<string | null>(null);
   const [commentInputText, setCommentInputText] = useState<string>('');
 
-  const isFreeUser = currentUser.tier === 'free';
-  const effectiveUserId = sessionUserId || currentUser.id;
+  const isFreeUser = currentUser?.tier === 'free';
+  const currentName = (currentUser?.name || '').trim().toLowerCase();
 
-  // Free users can view their own bird log sightings
+  // Free users can ONLY view their own bird log sightings
   const accessibleSightings = isFreeUser
-    ? sightings.filter((s) => s.userId === effectiveUserId || s.userId === currentUser.id || (s.userName && currentUser.name && s.userName.toLowerCase() === currentUser.name.toLowerCase()))
-    : sightings;
+    ? (sightings || []).filter((s) => s && (s.userId === currentUser?.id || (currentName && s.userName && s.userName.trim().toLowerCase() === currentName)))
+    : (sightings || []);
 
   // Derive unique species and location regions for dropdown filters
-  const availableSpecies = Array.from(new Set(sightings.map((s) => s.speciesName))).sort();
+  const availableSpecies = Array.from(new Set((sightings || []).map((s) => s?.speciesName).filter(Boolean) as string[])).sort();
   const availableRegions = Array.from(
     new Set(
-      sightings.map((s) => {
+      (sightings || []).map((s) => {
+        if (!s) return '';
         if (s.region) return s.region;
+        if (!s.locationName) return 'Global';
         const parts = s.locationName.split(',');
         return parts[parts.length - 1]?.trim() || s.locationName;
       }).filter(Boolean)
@@ -78,11 +54,19 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
   ).sort();
 
   const filteredSightings = accessibleSightings.filter((s) => {
+    if (!s) return false;
+    const term = (searchTerm || '').trim().toLowerCase();
+    const speciesName = (s.speciesName || '').toLowerCase();
+    const scientificName = (s.scientificName || '').toLowerCase();
+    const locationName = (s.locationName || '').toLowerCase();
+    const userName = (s.userName || '').toLowerCase();
+
     const matchesSearch =
-      s.speciesName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.scientificName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.locationName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.userName.toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      speciesName.includes(term) ||
+      scientificName.includes(term) ||
+      locationName.includes(term) ||
+      userName.includes(term);
 
     if (!matchesSearch) return false;
 
@@ -91,14 +75,14 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
     if (
       selectedRegion !== 'All' &&
       s.region !== selectedRegion &&
-      !s.locationName.toLowerCase().includes(selectedRegion.toLowerCase())
+      !locationName.includes((selectedRegion || '').toLowerCase())
     ) {
       return false;
     }
 
-    if (filterType === 'verified') return s.verified;
-    if (filterType === 'mine') return s.userId === currentUser.id || s.userName.toLowerCase() === currentUser.name.toLowerCase();
-    if (filterType === 'hotspots') return s.isHotspotExclusive;
+    if (filterType === 'verified') return Boolean(s.verified);
+    if (filterType === 'mine') return s.userId === currentUser?.id || (currentName && userName === currentName);
+    if (filterType === 'hotspots') return Boolean(s.isHotspotExclusive);
 
     return true;
   });
@@ -135,43 +119,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          {/* View Mode Toggle */}
-          <div className="bg-[rgba(237,238,239,0.06)] border border-[rgba(237,238,239,0.12)] p-1 rounded-md flex items-center space-x-1">
-            <button
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 rounded text-xs font-mono-code uppercase tracking-wider flex items-center space-x-1.5 transition-all cursor-pointer ${
-                viewMode === 'table'
-                  ? 'bg-[#00ffaa] text-[#0b0c0d] font-bold shadow-sm'
-                  : 'text-[#edeeef]/70 hover:text-[#edeeef] hover:bg-[rgba(237,238,239,0.08)]'
-              }`}
-              title="Switch to detailed database sightings table"
-            >
-              <Table className="w-3.5 h-3.5" />
-              <span>Table</span>
-            </button>
-            <button
-              onClick={() => setViewMode('feed')}
-              className={`px-3 py-1.5 rounded text-xs font-mono-code uppercase tracking-wider flex items-center space-x-1.5 transition-all cursor-pointer ${
-                viewMode === 'feed'
-                  ? 'bg-[#00ffaa] text-[#0b0c0d] font-bold shadow-sm'
-                  : 'text-[#edeeef]/70 hover:text-[#edeeef] hover:bg-[rgba(237,238,239,0.08)]'
-              }`}
-              title="Switch to visual observation cards"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span>Cards</span>
-            </button>
-          </div>
-
-          <button
-            onClick={onOpenLogModal}
-            className="min-h-[40px] px-4 sm:px-5 py-2 rounded bg-[#00ffaa] hover:bg-[#00ffaa]/90 text-[#0b0c0d] font-syne font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-[#00ffaa]/20 transition-all flex items-center justify-center space-x-2 shrink-0 cursor-pointer"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Log Observation</span>
-          </button>
-        </div>
+        <button
+          onClick={onOpenLogModal}
+          className="min-h-[44px] px-5 py-2.5 rounded bg-[#00ffaa] hover:bg-[#00ffaa]/90 text-[#0b0c0d] font-syne font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-[#00ffaa]/20 transition-all flex items-center justify-center space-x-2 shrink-0 cursor-pointer"
+        >
+          <PlusCircle className="w-4 h-4" />
+          <span>Log Observation</span>
+        </button>
       </div>
 
       {/* Free Tier Restriction Alert Banner */}
@@ -204,23 +158,8 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
         </div>
       )}
 
-      {/* View Switch: Sightings Table vs Cards Stream */}
-      {viewMode === 'table' ? (
-        <SightingsTable
-          sightings={accessibleSightings}
-          currentUser={currentUser}
-          sessionUserId={effectiveUserId}
-          onLikeSighting={onLikeSighting}
-          onDeleteSighting={onDeleteSighting}
-          onJumpToMapSighting={onJumpToMapSighting}
-          onOpenLogModal={onOpenLogModal}
-          onRefresh={onRefreshSightings}
-          isRefreshing={isRefreshingSightings}
-        />
-      ) : (
-        <>
-          {/* Search & Filter Bar */}
-          <div className="flex flex-col space-y-3 bg-[rgba(237,238,239,0.03)] p-3 sm:p-4 rounded border border-[rgba(237,238,239,0.1)]">
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col space-y-3 bg-[rgba(237,238,239,0.03)] p-3 sm:p-4 rounded border border-[rgba(237,238,239,0.1)]">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           
           {/* Search Input */}
@@ -504,15 +443,19 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
                     className="min-h-[44px] flex items-center space-x-1.5 text-xs font-mono-code uppercase text-[#edeeef]/60 hover:text-[#00ffaa] transition-colors cursor-pointer"
                   >
                     <MessageSquare className="w-4 h-4" />
-                    <span>{s.comments.length} Comments</span>
+                    <span>{(s.comments || []).length} Comments</span>
                   </button>
                 </div>
 
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => {
-                      if (navigator.clipboard) {
-                        navigator.clipboard.writeText(window.location.href);
+                    onClick={async () => {
+                      try {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                          await navigator.clipboard.writeText(window.location.href);
+                        }
+                      } catch (err) {
+                        console.warn('Clipboard write error:', err);
                       }
                       setCopiedSightingId(s.id);
                       setTimeout(() => setCopiedSightingId(null), 2500);
@@ -525,7 +468,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
                     </span>
                   </button>
 
-                  {onDeleteSighting && (s.userId === currentUser.id || s.userName.toLowerCase() === currentUser.name.toLowerCase()) && (
+                  {onDeleteSighting && (s.userId === currentUser?.id || (currentName && s.userName && s.userName.trim().toLowerCase() === currentName)) && (
                     <button
                       onClick={() => {
                         if (confirm('Are you sure you want to delete this sighting?')) {
@@ -583,8 +526,6 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
           ))
         )}
       </div>
-    </>
-  )}
-</div>
-);
+    </div>
+  );
 };

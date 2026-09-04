@@ -226,21 +226,6 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Idempotent column migrations for existing databases
-ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS email_token TEXT;
-ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS subscription_code TEXT;
-ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS customer_code TEXT;
-ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS transaction_ref TEXT;
-ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS tier_plan TEXT DEFAULT 'paid';
-ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS billing_interval TEXT DEFAULT 'monthly';
-ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS provider TEXT DEFAULT 'paystack';
-ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS amount NUMERIC(10, 2) DEFAULT 4.99;
-ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'USD';
-ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS current_period_start TIMESTAMP WITH TIME ZONE DEFAULT NOW();
-ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS current_period_end TIMESTAMP WITH TIME ZONE;
-ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS cancel_at_period_end BOOLEAN DEFAULT FALSE;
-ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
-
 -- Fast indexes for lookups
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON public.subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON public.subscriptions(status);

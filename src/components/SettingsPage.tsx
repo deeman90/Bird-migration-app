@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { User, UserAddress, UserTier } from '../types';
 import { uploadFileToSupabaseStorage, deleteFileFromSupabaseStorage } from '../services/storageService.js';
 import { getUserSubscription, cancelUserSubscription, SubscriptionRecord } from '../services/subscriptionService.js';
-import { saveUserProfile, CREATE_USER_PROFILES_SQL } from '../services/userService.js';
 import {
   User as UserIcon,
   Camera,
@@ -33,10 +32,6 @@ import {
   Copy,
   Share2,
   Users,
-  Database,
-  Code,
-  ExternalLink,
-  X,
 } from 'lucide-react';
 
 interface SettingsPageProps {
@@ -154,9 +149,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [customAvatarUrl, setCustomAvatarUrl] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
-  const [isSavingDb, setIsSavingDb] = useState(false);
-  const [isSqlModalOpen, setIsSqlModalOpen] = useState(false);
-  const [hasCopiedSql, setHasCopiedSql] = useState(false);
 
   // Handle Avatar Image Upload from Local Computer
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -249,9 +241,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   };
 
   // Save Settings Handler
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSavingDb(true);
 
     const updatedUser: User = {
       ...currentUser,
@@ -284,28 +275,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     };
 
     onSaveUser(updatedUser);
-
-    try {
-      const dbResult = await saveUserProfile(updatedUser);
-      setIsSavingDb(false);
-      setIsSaved(true);
-      if (dbResult.isTableMissing) {
-        setSavedMessage('Profile saved locally. Run create_user_profiles_table.sql in Supabase to sync cloud database.');
-      } else if (dbResult.error) {
-        setSavedMessage('Profile updated locally (Supabase database note logged).');
-      } else {
-        setSavedMessage('✓ Personal profile, photo and address saved to Supabase profiles database!');
-      }
-    } catch {
-      setIsSavingDb(false);
-      setIsSaved(true);
-      setSavedMessage('Profile and personal information updated successfully!');
-    }
+    setIsSaved(true);
+    setSavedMessage('Profile and personal information updated successfully!');
 
     setTimeout(() => {
       setIsSaved(false);
       setSavedMessage('');
-    }, 4500);
+    }, 4000);
   };
 
   return (
@@ -1225,11 +1201,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
               <button
                 type="submit"
-                disabled={isSavingDb}
-                className="flex items-center space-x-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-400 transition-all cursor-pointer disabled:opacity-50"
+                className="flex items-center space-x-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-400 transition-all cursor-pointer"
               >
                 <Save className="w-4 h-4" />
-                <span>{isSavingDb ? 'Saving to Database...' : 'Save Settings'}</span>
+                <span>Save Settings</span>
               </button>
             </div>
 
@@ -1237,89 +1212,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         </div>
 
       </div>
-
-      {/* Supabase User Table SQL Schema Modal */}
-      {isSqlModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-3xl max-h-[85vh] bg-[#0b0c0d] border border-[rgba(237,238,239,0.2)] rounded-lg shadow-2xl flex flex-col overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-[rgba(237,238,239,0.1)] bg-[rgba(237,238,239,0.02)]">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded bg-[#00ffaa]/15 border border-[#00ffaa]/30 flex items-center justify-center">
-                  <Database className="w-4 h-4 text-[#00ffaa]" />
-                </div>
-                <div>
-                  <h3 className="font-syne text-base font-bold text-[#edeeef]">
-                    Supabase User Table Schema (Personal Data)
-                  </h3>
-                  <p className="font-mono-code text-[11px] text-[#edeeef]/60">
-                    Table: <code className="text-[#00ffaa]">public.profiles</code> • Stores profile picture, name, address & gear
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSqlModalOpen(false)}
-                className="p-1.5 rounded hover:bg-[rgba(237,238,239,0.1)] text-[#edeeef]/60 hover:text-[#edeeef] transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 font-mono-code text-xs">
-              <div className="p-3 bg-[rgba(0,255,170,0.06)] border border-[#00ffaa]/20 rounded text-[#edeeef]/85 text-[11px] leading-relaxed">
-                Run this SQL query in your Supabase SQL Editor (<a href="https://supabase.com/dashboard/project/cgqsmdnwzrazyyhkdibn/sql" target="_blank" rel="noreferrer" className="text-[#00ffaa] underline">Dashboard SQL Editor</a>) to create the <code className="text-[#00ffaa]">public.profiles</code> table, security policies (RLS), and automatic user creation trigger.
-              </div>
-
-              <div className="relative">
-                <div className="flex items-center justify-between pb-1.5 text-[11px] text-[#edeeef]/50">
-                  <span>create_user_profiles_table.sql</span>
-                  <span>PostgreSQL DDL</span>
-                </div>
-                <pre className="p-3 bg-black/60 rounded border border-[rgba(237,238,239,0.1)] overflow-x-auto text-[11px] text-[#00ffaa] leading-relaxed max-h-72">
-                  {CREATE_USER_PROFILES_SQL}
-                </pre>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-[rgba(237,238,239,0.1)] bg-[rgba(237,238,239,0.02)] flex flex-col sm:flex-row items-center justify-between gap-3">
-              <a
-                href="https://supabase.com/dashboard/project/cgqsmdnwzrazyyhkdibn/sql"
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs font-mono-code text-[#00ffaa] hover:underline flex items-center space-x-1.5"
-              >
-                <span>Open Supabase SQL Editor</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-
-              <div className="flex items-center space-x-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(CREATE_USER_PROFILES_SQL);
-                    setHasCopiedSql(true);
-                    setTimeout(() => setHasCopiedSql(false), 3000);
-                  }}
-                  className="w-full sm:w-auto px-4 py-2 bg-[#00ffaa] text-[#0b0c0d] font-syne font-bold text-xs uppercase tracking-wider rounded hover:bg-[#00ffaa]/90 transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>{hasCopiedSql ? '✓ Copied SQL Script!' : 'Copy SQL Script'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsSqlModalOpen(false)}
-                  className="px-4 py-2 border border-[rgba(237,238,239,0.2)] text-[#edeeef] text-xs font-mono-code uppercase rounded hover:bg-[rgba(237,238,239,0.05)] cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );
