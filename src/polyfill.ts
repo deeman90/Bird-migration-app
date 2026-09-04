@@ -1,52 +1,37 @@
-// Polyfill to safely handle window.fetch getter/setter in restricted iframe environments
-if (typeof window !== 'undefined') {
+// Safe polyfill for window.fetch in sandboxed iframe environments
+if (typeof window !== 'undefined' && !(window as any).__fetchPolyfilled) {
   try {
+    (window as any).__fetchPolyfilled = true;
     const initialFetch = window.fetch;
-    let activeFetch = typeof initialFetch === 'function' ? initialFetch.bind(window) : initialFetch;
+    if (typeof initialFetch === 'function') {
+      let activeFetch = initialFetch.bind(window);
 
-    const desc = {
-      get() {
-        return activeFetch;
-      },
-      set(v: any) {
-        activeFetch = typeof v === 'function' ? v.bind(window) : v;
-      },
-      configurable: true,
-      enumerable: true,
-    };
+      const desc = {
+        get() {
+          return activeFetch;
+        },
+        set(v: any) {
+          activeFetch = typeof v === 'function' ? v.bind(window) : v;
+        },
+        configurable: true,
+        enumerable: true,
+      };
 
-    try {
-      Object.defineProperty(window, 'fetch', desc);
-    } catch (e) {
-      // ignore
-    }
-
-    if (typeof Window !== 'undefined' && Window.prototype) {
       try {
-        Object.defineProperty(Window.prototype, 'fetch', desc);
-      } catch (e) {
+        Object.defineProperty(window, 'fetch', desc);
+      } catch {
         // ignore
       }
-    }
 
-    if (typeof globalThis !== 'undefined') {
-      try {
-        Object.defineProperty(globalThis, 'fetch', desc);
-      } catch (e) {
-        // ignore
+      if (typeof Window !== 'undefined' && Window.prototype) {
+        try {
+          Object.defineProperty(Window.prototype, 'fetch', desc);
+        } catch {
+          // ignore
+        }
       }
     }
-
-    if (typeof self !== 'undefined') {
-      try {
-        Object.defineProperty(self, 'fetch', desc);
-      } catch (e) {
-        // ignore
-      }
-    }
-  } catch (e) {
-    console.error('[polyfill] fetch polyfill error:', e);
+  } catch {
+    // ignore
   }
 }
-
-

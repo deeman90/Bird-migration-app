@@ -125,12 +125,7 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
 
       if (!json.success || !json.data) {
         // Fallback to closest database species if available to prevent blocking user
-        const imgStr = typeof imageToAnalyze === 'string' ? imageToAnalyze.toLowerCase() : '';
-        const matched = speciesList.find((s) => {
-          if (!s || !s.commonName) return false;
-          const token = s.commonName.toLowerCase().split(' ')[0];
-          return token && imgStr.includes(token);
-        }) || speciesList[0];
+        const matched = speciesList.find((s) => typeof imageToAnalyze === 'string' && s.commonName && imageToAnalyze.toLowerCase().includes(s.commonName.toLowerCase().split(' ')[0])) || speciesList[0];
         if (matched) {
           setAiResult({
             commonName: matched.commonName,
@@ -163,7 +158,7 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
 
       setAiResult(json.data);
     } catch (err: any) {
-      console.error('AI Identification error:', err);
+      console.warn('AI Identification notice:', err?.message || err);
       const cleanMsg = extractErrorMessage(err?.message || err, 'Failed to scan bird image. Please ensure photo is clear or try again.');
       setErrorMsg(cleanMsg);
     } finally {

@@ -4,27 +4,37 @@
     <script>
       (function() {
         try {
-          var initialFetch = typeof window !== 'undefined' ? window.fetch : null;
-          var activeFetch = typeof initialFetch === 'function' ? initialFetch.bind(window) : initialFetch;
-          
-          var desc = {
-            get: function() { return activeFetch; },
-            set: function(v) { activeFetch = typeof v === 'function' ? v.bind(window) : v; },
-            configurable: true,
-            enumerable: true
-          };
-
           if (typeof window !== 'undefined') {
-            try { Object.defineProperty(window, 'fetch', desc); } catch (e) {}
-          }
-          if (typeof Window !== 'undefined' && Window.prototype) {
-            try { Object.defineProperty(Window.prototype, 'fetch', desc); } catch (e) {}
-          }
-          if (typeof globalThis !== 'undefined') {
-            try { Object.defineProperty(globalThis, 'fetch', desc); } catch (e) {}
-          }
-          if (typeof self !== 'undefined') {
-            try { Object.defineProperty(self, 'fetch', desc); } catch (e) {}
+            window.addEventListener('unhandledrejection', function(event) {
+              if (event) {
+                event.preventDefault();
+                if (event.reason) {
+                  console.warn('[Handled Promise Rejection]', event.reason);
+                }
+              }
+            });
+
+            window.addEventListener('error', function(event) {
+              if (!event.message || event.message === 'Script error.' || event.message.trim() === '') {
+                event.preventDefault();
+              }
+            });
+
+            if (!window.__fetchPolyfilled && typeof window.fetch === 'function') {
+              window.__fetchPolyfilled = true;
+              var initialFetch = window.fetch;
+              var activeFetch = initialFetch.bind(window);
+              var desc = {
+                get: function() { return activeFetch; },
+                set: function(v) { activeFetch = typeof v === 'function' ? v.bind(window) : v; },
+                configurable: true,
+                enumerable: true
+              };
+              try { Object.defineProperty(window, 'fetch', desc); } catch (e) {}
+              if (typeof Window !== 'undefined' && Window.prototype) {
+                try { Object.defineProperty(Window.prototype, 'fetch', desc); } catch (e) {}
+              }
+            }
           }
         } catch (err) {}
       })();

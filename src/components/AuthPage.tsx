@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserTier } from '../types';
 import { supabase } from '../supabaseClient.js';
+import { fetchUserProfile, saveUserProfile } from '../services/userService.js';
 import {
   LogIn,
   UserPlus,
@@ -129,8 +130,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       });
 
       if (error) {
-        const errMessage = error?.message || 'Authentication error';
-        const errLower = errMessage.toLowerCase();
+        const errLower = error.message.toLowerCase();
         if (errLower.includes('api key') || errLower.includes('fetch') || errLower.includes('url') || errLower.includes('invalid api')) {
           const authenticatedUser: User = {
             id: `usr_${Date.now()}`,
@@ -155,10 +155,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           return;
         }
 
-        const isRateLimit = errLower.includes('rate limit');
+        const isRateLimit = error.message.toLowerCase().includes('rate limit');
         const customMsg = isRateLimit
           ? 'Rate limit exceeded. Please wait a few minutes before trying to sign in again.'
-          : (errMessage === 'Invalid login credentials' ? 'Invalid email or password. Please check your credentials.' : errMessage);
+          : (error.message === 'Invalid login credentials' ? 'Invalid email or password. Please check your credentials.' : error.message);
         setErrorMsg(customMsg);
         return;
       }
@@ -169,7 +169,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       }
 
       const loggedUser = data.user;
-      const authenticatedUser: User = {
+      let authenticatedUser: User = {
         id: loggedUser?.id || `usr_${Date.now()}`,
         name: loggedUser?.user_metadata?.name || loginEmail.split('@')[0] || 'Observer',
         email: loggedUser?.email || loginEmail,
@@ -182,6 +182,24 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         badges: ['Verified Observer', 'Flyway Pioneer'],
         joinedDate: 'July 2026',
       };
+
+      if (loggedUser?.id) {
+        try {
+          const { data: dbProfile } = await fetchUserProfile(loggedUser.id);
+          if (dbProfile) {
+            authenticatedUser = {
+              ...authenticatedUser,
+              ...dbProfile,
+              id: loggedUser.id,
+              email: dbProfile.email || loggedUser.email || authenticatedUser.email,
+              name: dbProfile.name || authenticatedUser.name,
+              avatar: dbProfile.avatar || authenticatedUser.avatar,
+            };
+          }
+        } catch {
+          // Fall back gracefully to auth metadata
+        }
+      }
 
       setSuccessMsg(`Welcome back, ${authenticatedUser.name}!`);
       setTimeout(() => {
@@ -236,12 +254,30 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       });
 
       if (error) {
-        const errMessage = error?.message || 'Failed to create account.';
-        const msg = errMessage.toLowerCase().includes('rate limit')
+        const msg = error.message.toLowerCase().includes('rate limit')
           ? 'Email rate limit exceeded. Supabase limits how many confirmation emails can be sent per hour. Please wait a few minutes before trying again.'
-          : errMessage;
+          : error.message;
         setErrorMsg(msg);
         return;
+      }
+
+      if (data?.user?.id) {
+        // Persist initial profile into public.profiles
+        saveUserProfile({
+          id: data.user.id,
+          name: signupName,
+          email: emailToPass,
+          avatar: selectedAvatar,
+          region: signupRegion,
+          tier: signupTier,
+          sightingsCount: 0,
+          rareSpeciesCount: 0,
+          points: 0,
+          badges: ['New Observer'],
+          joinedDate: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        }).catch(() => {
+          // Ignored if table trigger handles it or table not created yet
+        });
       }
 
       // After successful signup:

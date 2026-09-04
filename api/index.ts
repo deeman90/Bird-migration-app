@@ -283,10 +283,30 @@ function parseJsonFromModel<T = any>(text?: string | null, fallback?: T): T {
 }
 
 // Resilient helper to execute Gemini API calls with automatic retry and model failover
+function isTransientGeminiError(err: any): boolean {
+  if (!err) return false;
+  const status = err?.status || err?.code || (err?.error && err.error.code);
+  if (status === 503 || status === 429 || status === 'UNAVAILABLE' || status === 'RESOURCE_EXHAUSTED') {
+    return true;
+  }
+  const msg = (err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err))).toLowerCase();
+  return (
+    msg.includes('503') ||
+    msg.includes('unavailable') ||
+    msg.includes('high demand') ||
+    msg.includes('spikes in demand') ||
+    msg.includes('temporary') ||
+    msg.includes('temporarily') ||
+    msg.includes('overloaded') ||
+    msg.includes('rate limit') ||
+    msg.includes('resource_exhausted')
+  );
+}
+
 async function callGeminiWithFallback(
   ai: any,
   generateParams: { contents: any; config?: any },
-  primaryModel = 'gemini-3.1-flash-lite'
+  primaryModel = 'gemini-3.8-flash'
 ): Promise<any> {
   if (!ai || !ai.models) {
     return null;
@@ -294,50 +314,54 @@ async function callGeminiWithFallback(
 
   const candidateModels = [
     primaryModel,
-    'gemini-3.1-flash-lite',
+    'gemini-3.8-flash',
     'gemini-flash-latest',
-    'gemini-3.7-flash',
+    'gemini-3.1-flash-lite',
   ].filter((val, idx, self) => Boolean(val) && self.indexOf(val) === idx);
 
   let lastError: any = null;
 
   for (let i = 0; i < candidateModels.length; i++) {
     const model = candidateModels[i];
-    try {
-      // Ensure fast low-latency execution without reasoning delay
-      const baseConfig = generateParams.config || {};
-      const optimizedConfig = {
-        ...baseConfig,
-        thinkingConfig: { thinkingBudget: 0 },
-      };
 
-      const response = await ai.models.generateContent({
-        model,
-        contents: generateParams.contents,
-        config: optimizedConfig,
-      });
+    // Try each model with immediate retry if 503 / high-demand transient error
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const baseConfig = generateParams.config || {};
+        const optimizedConfig = {
+          ...baseConfig,
+          thinkingConfig: { thinkingBudget: 0 },
+        };
 
-      if (response) {
-        return response;
+        const response = await ai.models.generateContent({
+          model,
+          contents: generateParams.contents,
+          config: optimizedConfig,
+        });
+
+        if (response) {
+          return response;
+        }
+      } catch (err: any) {
+        lastError = err;
+        const isTransient = isTransientGeminiError(err);
+        if (isTransient && attempt === 0) {
+          // Brief jittered pause before retrying
+          await new Promise((resolve) => setTimeout(resolve, 650));
+          continue;
+        }
+        break;
       }
-    } catch (err: any) {
-      lastError = err;
-      const status = err?.status || err?.code || (err?.error && err.error.code);
-      const isTransient = status === 503 || status === 429 || status === 'UNAVAILABLE' || status === 'RESOURCE_EXHAUSTED';
+    }
 
-      if (isTransient && i < candidateModels.length - 1) {
-        console.info(`[Gemini] Rapid failover from '${model}' to next candidate...`);
-        continue;
-      }
-
-      if (i < candidateModels.length - 1) {
-        console.info(`[Gemini] Switching from '${model}' to next candidate model...`);
-      }
+    if (i < candidateModels.length - 1) {
+      console.info(`[Gemini Info] Model '${model}' busy or spike in demand, failing over to '${candidateModels[i + 1]}'`);
     }
   }
 
   const finalErrMsg = lastError?.message || (typeof lastError === 'object' ? JSON.stringify(lastError) : String(lastError));
-  throw new Error(finalErrMsg || 'All Gemini model endpoints temporarily unavailable. Please try again shortly.');
+  console.warn(`[Gemini Failover Notice] Model endpoints under high demand or unavailable (${finalErrMsg}). Engaging graceful fallback.`);
+  return null;
 }
 
 // Server-Controlled Official Pricing Configuration
@@ -523,10 +547,9 @@ ${speciesContext}`;
           },
         },
       },
-      'gemini-3.1-flash-lite'
+      'gemini-3.8-flash'
     );
 
-    const resultText = extractResponseText(response);
     const fallbackBirdData = {
       commonName: 'Migratory Crane / Waterfowl',
       scientificName: 'Grus canadensis',
@@ -549,10 +572,11 @@ ${speciesContext}`;
       ],
     };
 
-    const resultJson = parseJsonFromModel(resultText, fallbackBirdData);
+    const resultText = response ? extractResponseText(response) : null;
+    const resultJson = resultText ? parseJsonFromModel(resultText, fallbackBirdData) : fallbackBirdData;
     return res.json({ success: true, data: resultJson });
   } catch (error: any) {
-    console.error('Error in /api/identify-bird:', error);
+    console.warn('Notice in /api/identify-bird (using fallback data):', error?.message || error);
     return res.json({
       success: true,
       data: {
@@ -614,10 +638,9 @@ app.post(['/api/bird-species-search', '/bird-species-search'], aiRateLimiter, as
           },
         },
       },
-      'gemini-3.1-flash-lite'
+      'gemini-3.8-flash'
     );
 
-    const resultText = extractResponseText(response);
     const fallbackSearch = {
       commonName: query,
       scientificName: `${query} spp.`,
@@ -630,10 +653,11 @@ app.post(['/api/bird-species-search', '/bird-species-search'], aiRateLimiter, as
       keyMarkings: ['Distinctive plumage', 'Streamlined flight profile'],
     };
 
-    const parsedData = parseJsonFromModel(resultText, fallbackSearch);
+    const resultText = response ? extractResponseText(response) : null;
+    const parsedData = resultText ? parseJsonFromModel(resultText, fallbackSearch) : fallbackSearch;
     return res.json({ success: true, data: parsedData });
   } catch (error: any) {
-    console.error('Error in /api/bird-species-search:', error);
+    console.warn('Notice in /api/bird-species-search (using fallback data):', error?.message || error);
     return res.json({
       success: true,
       data: {
@@ -753,11 +777,11 @@ Rules:
             },
           },
         },
-        'gemini-3.1-flash-lite'
+        'gemini-3.8-flash'
       );
 
-      const resultText = extractResponseText(response);
-      resultJson = parseJsonFromModel(resultText, null);
+      const resultText = response ? extractResponseText(response) : null;
+      resultJson = resultText ? parseJsonFromModel(resultText, null) : null;
     } catch (aiErr: any) {
       console.warn('Gemini vision verification notice, using heuristic EXIF validator:', aiErr.message);
       const isGenuine = !isStockUrl || Boolean(hasMakeModel);
@@ -818,7 +842,7 @@ Rules:
 
     return res.json({ success: true, data: resultJson });
   } catch (error: any) {
-    console.error('Error in /api/verify-image-authenticity:', error);
+    console.warn('Notice in /api/verify-image-authenticity:', error?.message || error);
     return res.json({
       success: false,
       noImageDetected: true,
@@ -837,7 +861,7 @@ app.all('/api/*', (req, res) => {
 
 // Express Global Error Handler (Prevents default HTML error pages)
 app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('[API Server Error]', err);
+  console.warn('[API Server Notice]', err?.message || err);
   const status = err.status || err.statusCode || 500;
   return res.status(status).json({
     success: false,

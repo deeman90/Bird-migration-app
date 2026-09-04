@@ -48,111 +48,102 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [mapTileStyle, setMapTileStyle] = useState<'dark' | 'satellite' | 'topo'>('dark');
 
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const currentUserName = (currentUser?.name || '').trim().toLowerCase();
 
   // Available unique regions
   const availableRegions = Array.from(
     new Set(
-      (sightings || [])
-        .map((s) => s.region || (s.locationName ? s.locationName.split(',').pop()?.trim() : ''))
+      sightings
+        .map((s) => s.region || s.locationName.split(',').pop()?.trim())
         .filter(Boolean) as string[]
     )
   ).sort();
 
   // Initialize Map
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    // Prevent Leaflet container already initialized error on re-renders / tab switches
-    if ((mapContainerRef.current as any)._leaflet_id) {
-      delete (mapContainerRef.current as any)._leaflet_id;
-    }
-    if (mapInstanceRef.current) {
+    // Default center globally focused
+    const map = L.map(mapContainerRef.current, {
+      center: [25, 0],
+      zoom: 3,
+      minZoom: 2,
+      maxZoom: 18,
+      zoomControl: false,
+    });
+
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    // Initial Tile Layer
+    const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
+      subdomains: 'abcd',
+      maxZoom: 19,
+    });
+    darkTiles.addTo(map);
+
+    markersLayerRef.current = L.layerGroup().addTo(map);
+    routesLayerRef.current = L.layerGroup().addTo(map);
+
+    mapInstanceRef.current = map;
+
+    // Resize observer with safety guard
+    const resizeObserver = new ResizeObserver(() => {
       try {
-        mapInstanceRef.current.remove();
-      } catch (e) {
-        console.warn('Map cleanup error before reinit:', e);
+        if (mapInstanceRef.current) {
+          map.invalidateSize();
+        }
+      } catch {
+        // ignore
+      }
+    });
+    if (mapContainerRef.current) {
+      resizeObserver.observe(mapContainerRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+      try {
+        map.remove();
+      } catch {
+        // ignore
       }
       mapInstanceRef.current = null;
-    }
-
-    try {
-      // Default center globally focused
-      const map = L.map(mapContainerRef.current, {
-        center: [25, 0],
-        zoom: 3,
-        minZoom: 2,
-        maxZoom: 18,
-        zoomControl: false,
-      });
-
-      L.control.zoom({ position: 'topright' }).addTo(map);
-
-      // Initial Tile Layer
-      const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap &copy; CARTO',
-        subdomains: 'abcd',
-        maxZoom: 19,
-      });
-      darkTiles.addTo(map);
-
-      markersLayerRef.current = L.layerGroup().addTo(map);
-      routesLayerRef.current = L.layerGroup().addTo(map);
-
-      mapInstanceRef.current = map;
-
-      // Resize observer
-      const resizeObserver = new ResizeObserver(() => {
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.invalidateSize();
-        }
-      });
-      resizeObserver.observe(mapContainerRef.current);
-
-      return () => {
-        resizeObserver.disconnect();
-        if (mapInstanceRef.current) {
-          try {
-            mapInstanceRef.current.remove();
-          } catch (e) {
-            console.warn('Map unmount cleanup error:', e);
-          }
-          mapInstanceRef.current = null;
-        }
-        if (mapContainerRef.current && (mapContainerRef.current as any)._leaflet_id) {
-          delete (mapContainerRef.current as any)._leaflet_id;
-        }
-      };
-    } catch (mapErr) {
-      console.error('Leaflet initialization error:', mapErr);
-    }
+    };
   }, []);
 
   // Handle Tile Style changes
   useEffect(() => {
     if (!mapInstanceRef.current) return;
 
-    mapInstanceRef.current.eachLayer((layer) => {
-      if (layer instanceof L.TileLayer) {
-        mapInstanceRef.current?.removeLayer(layer);
+    try {
+      mapInstanceRef.current.eachLayer((layer) => {
+        if (layer instanceof L.TileLayer) {
+          try {
+            mapInstanceRef.current?.removeLayer(layer);
+          } catch {
+            // ignore
+          }
+        }
+      });
+
+      let newTileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+      let attribution = '&copy; CARTO & OpenStreetMap';
+
+      if (mapTileStyle === 'satellite') {
+        newTileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+        attribution = '&copy; Esri World Imagery';
+      } else if (mapTileStyle === 'topo') {
+        newTileUrl = 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
+        attribution = '&copy; OpenTopoMap';
       }
-    });
 
-    let newTileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    let attribution = '&copy; CARTO & OpenStreetMap';
-
-    if (mapTileStyle === 'satellite') {
-      newTileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-      attribution = '&copy; Esri World Imagery';
-    } else if (mapTileStyle === 'topo') {
-      newTileUrl = 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
-      attribution = '&copy; OpenTopoMap';
+      L.tileLayer(newTileUrl, {
+        attribution,
+        maxZoom: 18,
+      }).addTo(mapInstanceRef.current);
+    } catch (err) {
+      console.warn('Map tile layer update notice:', err);
     }
-
-    L.tileLayer(newTileUrl, {
-      attribution,
-      maxZoom: 18,
-    }).addTo(mapInstanceRef.current);
   }, [mapTileStyle]);
 
   // Click handler for picker mode
@@ -220,104 +211,105 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const currentMonthName = months[timePlaybackMonthIndex];
 
     // 1. Render Migration Routes
-    if (showRoutes) {
-      migrationRoutes.forEach((route) => {
-        if (selectedSpeciesFilter !== 'All' && route.speciesId !== selectedSpeciesFilter) return;
+    try {
+      if (showRoutes) {
+        migrationRoutes.forEach((route) => {
+          if (selectedSpeciesFilter !== 'All' && route.speciesId !== selectedSpeciesFilter) return;
 
-        // Draw animated Polyline
-        const latLngs = route.pathPoints.map((p) => [p.lat, p.lng] as [number, number]);
-        const polyline = L.polyline(latLngs, {
-          color: route.color,
-          weight: 3.5,
-          opacity: 0.85,
-          dashArray: '8, 8',
-          className: 'animated-flyway-path',
-        });
-
-        polyline.bindPopup(`
-          <div class="p-2 text-slate-900">
-            <h4 class="font-bold text-sm text-slate-900">${route.speciesName} Migration Path</h4>
-            <p class="text-xs text-emerald-700 font-semibold">${route.flywayName}</p>
-            <p class="text-xs text-slate-600 mt-1">Total Distance: ${route.totalDistanceKm.toLocaleString()} km</p>
-            <div class="mt-2 text-[11px] bg-slate-100 p-1.5 rounded">
-              Status: <strong>${route.status}</strong>
-            </div>
-          </div>
-        `);
-
-        routesGroup.addLayer(polyline);
-
-        // Draw Stopover Nodes
-        route.pathPoints.forEach((pt) => {
-          const nodeIcon = L.divIcon({
-            className: 'route-node-icon',
-            html: `<div class="w-3.5 h-3.5 rounded-full border-2 border-white" style="background-color: ${route.color}; shadow: 0 0 8px ${route.color}"></div>`,
-            iconSize: [14, 14],
-            iconAnchor: [7, 7],
+          // Draw animated Polyline
+          const latLngs = (route.pathPoints || []).map((p) => [p.lat, p.lng] as [number, number]);
+          const polyline = L.polyline(latLngs, {
+            color: route.color,
+            weight: 3.5,
+            opacity: 0.85,
+            dashArray: '8, 8',
+            className: 'animated-flyway-path',
           });
 
-          const nodeMarker = L.marker([pt.lat, pt.lng], { icon: nodeIcon });
-          nodeMarker.bindTooltip(`${pt.name} (${pt.season || 'Flyway Waypoint'})`, { direction: 'top', offset: [0, -6] });
-          routesGroup.addLayer(nodeMarker);
-        });
-      });
-    }
-
-    // 2. Render Sightings (Free users can ONLY view their own bird log sightings)
-    const isFreeUser = currentUser?.tier === 'free';
-    const currentName = (currentUser?.name || '').trim().toLowerCase();
-    const accessibleSightings = isFreeUser
-      ? (sightings || []).filter((s) => s && (s.userId === currentUser?.id || (currentName && s.userName && s.userName.trim().toLowerCase() === currentName)))
-      : (sightings || []);
-
-    if (showSightings) {
-      accessibleSightings.forEach((s) => {
-        if (!s) return;
-        const lat = Number(s.latitude);
-        const lng = Number(s.longitude);
-        if (isNaN(lat) || isNaN(lng)) return;
-
-        if (selectedSpeciesFilter !== 'All' && s.speciesId !== selectedSpeciesFilter) return;
-        const locName = s.locationName || '';
-        if (
-          selectedRegionFilter !== 'All' &&
-          s.region !== selectedRegionFilter &&
-          !locName.toLowerCase().includes(selectedRegionFilter.toLowerCase())
-        ) {
-          return;
-        }
-
-        const sightingIcon = L.divIcon({
-          className: 'sighting-pin',
-          html: `
-            <div class="w-7 h-7 rounded-full bg-emerald-500 border-2 border-slate-950 flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform pulsing-sighting-marker">
-              <span class="text-xs">🦅</span>
+          polyline.bindPopup(`
+            <div class="p-2 text-slate-900">
+              <h4 class="font-bold text-sm text-slate-900">${route.speciesName} Migration Path</h4>
+              <p class="text-xs text-emerald-700 font-semibold">${route.flywayName}</p>
+              <p class="text-xs text-slate-600 mt-1">Total Distance: ${route.totalDistanceKm?.toLocaleString() || 0} km</p>
+              <div class="mt-2 text-[11px] bg-slate-100 p-1.5 rounded">
+                Status: <strong>${route.status}</strong>
+              </div>
             </div>
-          `,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
-        });
+          `);
 
-        const marker = L.marker([lat, lng], { icon: sightingIcon });
+          routesGroup.addLayer(polyline);
+
+          // Draw Stopover Nodes
+          (route.pathPoints || []).forEach((pt) => {
+            if (isNaN(Number(pt.lat)) || isNaN(Number(pt.lng))) return;
+            const nodeIcon = L.divIcon({
+              className: 'route-node-icon',
+              html: `<div class="w-3.5 h-3.5 rounded-full border-2 border-white" style="background-color: ${route.color}; shadow: 0 0 8px ${route.color}"></div>`,
+              iconSize: [14, 14],
+              iconAnchor: [7, 7],
+            });
+
+            const nodeMarker = L.marker([pt.lat, pt.lng], { icon: nodeIcon });
+            nodeMarker.bindTooltip(`${pt.name} (${pt.season || 'Flyway Waypoint'})`, { direction: 'top', offset: [0, -6] });
+            routesGroup.addLayer(nodeMarker);
+          });
+        });
+      }
+
+      // 2. Render Sightings (Free users can ONLY view their own bird log sightings)
+      const isFreeUser = currentUser.tier === 'free';
+      const accessibleSightings = isFreeUser
+        ? sightings.filter((s) => s.userId === currentUser.id || Boolean(s.userName && currentUser?.name && s.userName.toLowerCase() === currentUser.name.toLowerCase()))
+        : sightings;
+
+      if (showSightings) {
+        accessibleSightings.forEach((s) => {
+          if (selectedSpeciesFilter !== 'All' && s.speciesId !== selectedSpeciesFilter) return;
+          const loc = s.locationName || '';
+          const reg = s.region || '';
+          if (
+            selectedRegionFilter !== 'All' &&
+            reg !== selectedRegionFilter &&
+            !loc.toLowerCase().includes(selectedRegionFilter.toLowerCase())
+          ) {
+            return;
+          }
+
+          const lat = Number(s.latitude);
+          const lng = Number(s.longitude);
+          if (isNaN(lat) || isNaN(lng)) return;
+
+          const sightingIcon = L.divIcon({
+            className: 'sighting-pin',
+            html: `
+              <div class="w-7 h-7 rounded-full bg-emerald-500 border-2 border-slate-950 flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform pulsing-sighting-marker">
+                <span class="text-xs">🦅</span>
+              </div>
+            `,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+          });
+
+          const marker = L.marker([lat, lng], { icon: sightingIcon });
 
         const popupContent = document.createElement('div');
         popupContent.className = 'p-1 text-slate-900 max-w-xs';
         popupContent.innerHTML = `
           <div class="relative">
-            <img src="${s.photoUrl || ''}" alt="${s.speciesName || 'Bird'}" class="w-full h-28 object-cover rounded-lg mb-2" />
+            <img src="${s.photoUrl}" alt="${s.speciesName}" class="w-full h-28 object-cover rounded-lg mb-2" />
             <span class="absolute top-1 right-1 bg-slate-950/80 text-emerald-400 text-[10px] font-bold px-1.5 py-0.5 rounded">
-              Flock: ${s.flockCount || 1}
+              Flock: ${s.flockCount}
             </span>
           </div>
-          <h4 class="font-bold text-sm text-slate-900">${s.speciesName || 'Bird'}</h4>
-          <p class="text-xs text-slate-500 italic">${s.scientificName || ''}</p>
+          <h4 class="font-bold text-sm text-slate-900">${s.speciesName}</h4>
+          <p class="text-xs text-slate-500 italic">${s.scientificName}</p>
           <div class="mt-1 flex items-center justify-between text-xs text-slate-600 border-t pt-1 border-slate-200">
-            <span>📍 ${s.locationName || 'Unknown Location'}</span>
+            <span>📍 ${s.locationName}</span>
           </div>
-          <p class="text-xs text-slate-700 mt-1 line-clamp-2">${s.notes || ''}</p>
+          <p class="text-xs text-slate-700 mt-1 line-clamp-2">${s.notes}</p>
           <div class="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-            <span>By ${s.userName || 'Observer'}</span>
-            <span>${s.timestamp || ''}</span>
+            <span>By ${s.userName}</span>
+            <span>${s.timestamp}</span>
           </div>
         `;
 
@@ -333,12 +325,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     // 3. Render Hotspots (With VIP Lock logic)
     if (showHotspots) {
       hotspots.forEach((hs) => {
-        if (!hs) return;
-        const lat = Number(hs.latitude);
-        const lng = Number(hs.longitude);
-        if (isNaN(lat) || isNaN(lng)) return;
-
-        const isUserPaid = currentUser?.tier === 'paid';
+        const isUserPaid = currentUser.tier === 'paid';
         const isLockedForFreeUser = hs.isExclusive && !isUserPaid;
 
         const hotspotIcon = L.divIcon({
@@ -416,6 +403,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         markersGroup.addLayer(marker);
       });
     }
+  } catch (err) {
+    console.warn('Map markers and layers render notice:', err);
+  }
   }, [
     showRoutes,
     showSightings,
@@ -467,9 +457,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             <span className="w-1.5 h-1.5 rounded-full bg-[#00ffaa] inline-block"></span>
             <span>
               Sightings (
-              {currentUser?.tier === 'free'
-                ? (sightings || []).filter((s) => s && (s.userId === currentUser?.id || (currentUserName && s.userName && s.userName.trim().toLowerCase() === currentUserName))).length
-                : (sightings || []).length}
+              {currentUser.tier === 'free'
+                ? sightings.filter((s) => s.userId === currentUser.id || Boolean(s.userName && currentUser?.name && s.userName.toLowerCase() === currentUser.name.toLowerCase())).length
+                : sightings.length}
               )
             </span>
           </button>
