@@ -228,11 +228,17 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Preview Box */}
               <div className="relative h-44 sm:h-auto rounded border border-[rgba(237,238,239,0.15)] bg-black/40 overflow-hidden flex items-center justify-center group">
-                <img
-                  src={customPhotoInput.trim() || photoUrl}
-                  alt="Bird Sighting"
-                  className="w-full h-full object-cover"
-                />
+                {(customPhotoInput.trim() || photoUrl) ? (
+                  <img
+                    src={customPhotoInput.trim() || photoUrl}
+                    alt="Bird Sighting"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-center p-4 font-mono-code text-[#edeeef]/40 text-xs">
+                    No image selected
+                  </div>
+                )}
                 
                 {isScanning && (
                   <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center text-[#00ffaa] space-y-2 p-3 text-center">
@@ -269,7 +275,9 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
                             : 'border-[rgba(237,238,239,0.1)] opacity-70 hover:opacity-100'
                         }`}
                       >
-                        <img src={sample.url} alt={sample.name} className="w-full h-full object-cover" />
+                        {sample.url ? (
+                          <img src={sample.url} alt={sample.name} className="w-full h-full object-cover" />
+                        ) : null}
                       </button>
                     ))}
                   </div>

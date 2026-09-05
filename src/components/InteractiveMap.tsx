@@ -296,7 +296,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         popupContent.className = 'p-1 text-slate-900 max-w-xs';
         popupContent.innerHTML = `
           <div class="relative">
-            <img src="${s.photoUrl}" alt="${s.speciesName}" class="w-full h-28 object-cover rounded-lg mb-2" />
+            ${s.photoUrl ? `<img src="${s.photoUrl}" alt="${s.speciesName}" class="w-full h-28 object-cover rounded-lg mb-2" />` : ''}
             <span class="absolute top-1 right-1 bg-slate-950/80 text-emerald-400 text-[10px] font-bold px-1.5 py-0.5 rounded">
               Flock: ${s.flockCount}
             </span>
@@ -373,7 +373,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           popupDiv.innerHTML = `
             <div>
               <div class="relative">
-                <img src="${hs.photoUrl}" alt="${hs.name}" class="w-full h-28 object-cover rounded-lg mb-2" />
+                ${hs.photoUrl ? `<img src="${hs.photoUrl}" alt="${hs.name}" class="w-full h-28 object-cover rounded-lg mb-2" />` : ''}
                 <span class="absolute top-1 right-1 bg-amber-500 text-slate-950 text-[10px] font-bold px-1.5 py-0.5 rounded shadow">
                   ${hs.trafficRating.toUpperCase()} TRAFFIC
                 </span>

@@ -38,6 +38,7 @@ import {
   ExternalLink,
   X,
 } from 'lucide-react';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 
 interface SettingsPageProps {
   currentUser: User;
@@ -89,6 +90,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onToggleUserTier,
   onLogout,
 }) => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'profile' | 'address' | 'social' | 'notifications' | 'referral' | 'account'>('profile');
 
   // Local Form States initialized from currentUser
@@ -315,6 +317,26 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 animate-in fade-in duration-300 text-[#edeeef]">
       
+      {/* Top Back / Breadcrumb Navigation */}
+      <div className="mb-4 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => {
+            // Pass -1 into navigate to move one step back in the history stack
+            navigate(-1);
+          }}
+          className="inline-flex items-center space-x-1.5 text-xs font-mono-code text-[#edeeef]/70 hover:text-white px-3 py-1.5 rounded border border-[rgba(237,238,239,0.15)] bg-[rgba(237,238,239,0.05)] transition-all cursor-pointer"
+        >
+          <span>← Back to Previous Screen</span>
+        </button>
+        <RouterLink
+          to="/"
+          className="text-xs font-mono-code text-[#00ffaa]/80 hover:text-[#00ffaa] hover:underline transition-colors"
+        >
+          <span>Return to Flyway Map →</span>
+        </RouterLink>
+      </div>
+
       {/* Page Heading */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6 sm:mb-8 pb-4 sm:pb-6 border-b border-[rgba(237,238,239,0.1)]">
         <div>
@@ -460,12 +482,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               Profile Card Preview
             </span>
 
-            <div className="aspect-square w-full bg-[rgba(237,238,239,0.05)] mb-4 overflow-hidden rounded border border-[rgba(237,238,239,0.1)]">
-              <img
-                src={avatar || currentUser.avatar}
-                alt={name || 'Profile Avatar'}
-                className="w-full h-full object-cover"
-              />
+            <div className="aspect-square w-full bg-[rgba(237,238,239,0.05)] mb-4 overflow-hidden rounded border border-[rgba(237,238,239,0.1)] flex items-center justify-center">
+              {(avatar || currentUser.avatar) ? (
+                <img
+                  src={avatar || currentUser.avatar}
+                  alt={name || 'Profile Avatar'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <UserIcon className="w-16 h-16 text-[#edeeef]/30" />
+              )}
             </div>
 
             <div className="font-syne text-2xl font-extrabold text-[#edeeef] tracking-tight">
@@ -525,11 +551,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   </label>
 
                   <div className="flex flex-col sm:flex-row items-center gap-6 p-4 rounded bg-[rgba(237,238,239,0.04)] border border-[rgba(237,238,239,0.1)]">
-                    <img
-                      src={avatar || currentUser.avatar}
-                      alt="Avatar Preview"
-                      className="w-20 h-20 rounded object-cover ring-1 ring-[#00ffaa] shrink-0"
-                    />
+                    {(avatar || currentUser.avatar) ? (
+                      <img
+                        src={avatar || currentUser.avatar}
+                        alt="Avatar Preview"
+                        className="w-20 h-20 rounded object-cover ring-1 ring-[#00ffaa] shrink-0"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded bg-[rgba(237,238,239,0.06)] border border-[rgba(237,238,239,0.15)] flex items-center justify-center text-[#edeeef]/40 shrink-0">
+                        <UserIcon className="w-8 h-8 opacity-40" />
+                      </div>
+                    )}
 
                     <div className="space-y-3 w-full">
                       <div className="flex flex-wrap items-center gap-3">

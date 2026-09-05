@@ -1,6 +1,7 @@
 import React from 'react';
 import { User } from '../types';
 import { Navigation, Compass, PlusCircle, Users, Award, ShieldCheck, Lock, Sparkles, User as UserIcon, LogOut, Settings } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { BMALogo } from './BMALogo';
 
 interface NavbarProps {
@@ -24,6 +25,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuthModal,
   onOpenAiScanner,
 }) => {
+  const navigate = useNavigate();
+
+  const handleLogoutClick = () => {
+    if (onLogout) {
+      onLogout();
+    }
+    // Programmatic navigation on logout
+    navigate('/auth');
+  };
+
   return (
     <>
       {/* Top Header */}
@@ -31,19 +42,20 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
             
-            {/* Brand Logo */}
-            <div
+            {/* Brand Logo - Declarative Link */}
+            <Link
+              to="/"
               id="brand-logo-button"
               className="flex items-center cursor-pointer select-none transition-transform active:scale-95"
-              onClick={() => setActiveTab('map')}
+              title="AeroTrack Flyway Map Home"
             >
               <BMALogo className="h-8 sm:h-9 w-auto shadow-sm shadow-[#059669]/30 rounded-xl" />
-            </div>
+            </Link>
 
-            {/* Desktop Navigation Tabs */}
+            {/* Desktop Navigation Tabs - Declarative Link Components */}
             <nav className="hidden md:flex items-center space-x-1 bg-[rgba(237,238,239,0.04)] p-1 rounded-md border border-[rgba(237,238,239,0.08)]">
-              <button
-                onClick={() => setActiveTab('map')}
+              <Link
+                to="/"
                 className={`font-mono-code flex items-center space-x-2 px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
                   activeTab === 'map'
                     ? 'bg-[#00ffaa] text-[#0b0c0d] shadow-sm shadow-[#00ffaa]/20 font-bold'
@@ -52,10 +64,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Compass className="w-3.5 h-3.5" />
                 <span>Flyway Map</span>
-              </button>
+              </Link>
 
-              <button
-                onClick={() => setActiveTab('log')}
+              <Link
+                to="/log"
                 className={`font-mono-code flex items-center space-x-2 px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
                   activeTab === 'log'
                     ? 'bg-[#00ffaa] text-[#0b0c0d] shadow-sm shadow-[#00ffaa]/20 font-bold'
@@ -64,10 +76,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <PlusCircle className="w-3.5 h-3.5 text-[#00ffaa]" />
                 <span>Log Sighting</span>
-              </button>
+              </Link>
 
-              <button
-                onClick={() => setActiveTab('feed')}
+              <Link
+                to="/feed"
                 className={`font-mono-code flex items-center space-x-2 px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
                   activeTab === 'feed'
                     ? 'bg-[#00ffaa] text-[#0b0c0d] shadow-sm shadow-[#00ffaa]/20 font-bold'
@@ -76,10 +88,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Users className="w-3.5 h-3.5" />
                 <span>Community Feed</span>
-              </button>
+              </Link>
 
-              <button
-                onClick={() => setActiveTab('leaderboard')}
+              <Link
+                to="/leaderboard"
                 className={`font-mono-code flex items-center space-x-2 px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
                   activeTab === 'leaderboard'
                     ? 'bg-[#00ffaa] text-[#0b0c0d] shadow-sm shadow-[#00ffaa]/20 font-bold'
@@ -88,10 +100,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Award className="w-3.5 h-3.5 text-amber-400" />
                 <span>Ranks</span>
-              </button>
+              </Link>
 
-              <button
-                onClick={() => setActiveTab('hotspots')}
+              <Link
+                to="/hotspots"
                 className={`font-mono-code flex items-center space-x-2 px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
                   activeTab === 'hotspots'
                     ? 'bg-amber-400 text-[#0b0c0d] shadow-sm shadow-amber-400/20 font-bold'
@@ -109,7 +121,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     PRO
                   </span>
                 )}
-              </button>
+              </Link>
             </nav>
 
             {/* Right Action Bar */}
@@ -138,11 +150,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
               </button>
 
-              {/* User Account / Settings Button */}
+              {/* User Account / Settings Button - Declarative Link */}
               {isLoggedIn ? (
                 <div className="flex items-center space-x-1">
-                  <button
-                    onClick={() => setActiveTab('settings')}
+                  <Link
+                    to="/settings"
                     title="Click to manage personal profile and settings"
                     className={`flex items-center justify-center space-x-1.5 p-1 sm:p-1.5 sm:px-2.5 rounded-md border cursor-pointer transition-all min-h-[36px] ${
                       activeTab === 'settings'
@@ -150,16 +162,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                         : 'bg-[rgba(237,238,239,0.06)] hover:bg-[rgba(237,238,239,0.1)] border-[rgba(237,238,239,0.12)] text-[#edeeef]/90'
                     }`}
                   >
-                    <img
-                      src={currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300'}
-                      alt="Settings Profile"
-                      className="w-5 h-5 sm:w-6 sm:h-6 rounded-full object-cover shrink-0 border border-[#00ffaa]/40"
-                    />
+                    {(currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300') ? (
+                      <img
+                        src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300'}
+                        alt="Settings Profile"
+                        className="w-5 h-5 sm:w-6 sm:h-6 rounded-full object-cover shrink-0 border border-[#00ffaa]/40"
+                      />
+                    ) : null}
                     <span className="font-mono-code text-[11px] uppercase font-bold tracking-wider hidden sm:inline">Settings</span>
-                  </button>
+                  </Link>
                   {onLogout && (
                     <button
-                      onClick={onLogout}
+                      onClick={handleLogoutClick}
                       title="Log Out"
                       className="p-1.5 rounded-md border border-slate-800 text-slate-400 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 transition-all cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
                     >
@@ -168,8 +182,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   )}
                 </div>
               ) : (
-                <button
-                  onClick={() => setActiveTab('auth')}
+                <Link
+                  to="/auth"
                   className={`font-mono-code flex items-center space-x-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-md border text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer min-h-[36px] ${
                     activeTab === 'auth'
                       ? 'bg-[#00ffaa] border-[#00ffaa] text-[#0b0c0d] shadow-sm shadow-[#00ffaa]/20 font-bold'
@@ -178,21 +192,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <UserIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <span>Log In</span>
-                </button>
+                </Link>
               )}
             </div>
           </div>
         </div>
       </header>
 
-      {/* Mobile Bottom Navigation Dock (Fixed at bottom on phones) */}
+      {/* Mobile Bottom Navigation Dock (Fixed at bottom on phones) - Declarative Link Components */}
       <nav
         aria-label="Mobile Navigation"
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0b0c0d]/95 backdrop-blur-xl border-t border-[rgba(237,238,239,0.12)] px-2 pt-1 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.5)] flex items-center justify-around"
       >
         {/* Flyway Map Tab */}
-        <button
-          onClick={() => setActiveTab('map')}
+        <Link
+          to="/"
           className={`flex-1 flex flex-col items-center justify-center py-1.5 min-h-[48px] text-[10px] font-mono-code uppercase rounded-lg transition-all active:scale-95 cursor-pointer ${
             activeTab === 'map'
               ? 'text-[#00ffaa] font-bold bg-[#00ffaa]/10'
@@ -201,11 +215,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <Compass className={`w-5 h-5 mb-0.5 ${activeTab === 'map' ? 'stroke-[2.5]' : 'stroke-2'}`} />
           <span>Map</span>
-        </button>
+        </Link>
 
         {/* Log Sighting Tab (Highlighted Action) */}
-        <button
-          onClick={() => setActiveTab('log')}
+        <Link
+          to="/log"
           className={`flex-1 flex flex-col items-center justify-center py-1.5 min-h-[48px] text-[10px] font-mono-code uppercase rounded-lg transition-all active:scale-95 cursor-pointer ${
             activeTab === 'log'
               ? 'text-[#00ffaa] font-bold bg-[#00ffaa]/15 ring-1 ring-[#00ffaa]/40'
@@ -214,11 +228,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <PlusCircle className={`w-5 h-5 mb-0.5 text-[#00ffaa] ${activeTab === 'log' ? 'stroke-[2.5]' : 'stroke-2'}`} />
           <span>Log</span>
-        </button>
+        </Link>
 
         {/* Community Feed Tab */}
-        <button
-          onClick={() => setActiveTab('feed')}
+        <Link
+          to="/feed"
           className={`flex-1 flex flex-col items-center justify-center py-1.5 min-h-[48px] text-[10px] font-mono-code uppercase rounded-lg transition-all active:scale-95 cursor-pointer ${
             activeTab === 'feed'
               ? 'text-[#00ffaa] font-bold bg-[#00ffaa]/10'
@@ -227,11 +241,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <Users className={`w-5 h-5 mb-0.5 ${activeTab === 'feed' ? 'stroke-[2.5]' : 'stroke-2'}`} />
           <span>Feed</span>
-        </button>
+        </Link>
 
         {/* Leaderboard / Ranks Tab */}
-        <button
-          onClick={() => setActiveTab('leaderboard')}
+        <Link
+          to="/leaderboard"
           className={`flex-1 flex flex-col items-center justify-center py-1.5 min-h-[48px] text-[10px] font-mono-code uppercase rounded-lg transition-all active:scale-95 cursor-pointer ${
             activeTab === 'leaderboard'
               ? 'text-amber-400 font-bold bg-amber-400/10'
@@ -240,11 +254,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <Award className={`w-5 h-5 mb-0.5 text-amber-400 ${activeTab === 'leaderboard' ? 'stroke-[2.5]' : 'stroke-2'}`} />
           <span>Ranks</span>
-        </button>
+        </Link>
 
         {/* VIP Hotspots Tab */}
-        <button
-          onClick={() => setActiveTab('hotspots')}
+        <Link
+          to="/hotspots"
           className={`flex-1 flex flex-col items-center justify-center py-1.5 min-h-[48px] text-[10px] font-mono-code uppercase rounded-lg transition-all active:scale-95 cursor-pointer relative ${
             activeTab === 'hotspots'
               ? 'text-amber-400 font-bold bg-amber-400/10'
@@ -256,28 +270,30 @@ export const Navbar: React.FC<NavbarProps> = ({
           {currentUser.tier === 'paid' && (
             <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-amber-400"></span>
           )}
-        </button>
+        </Link>
 
         {/* User Settings / Auth Tab */}
         {isLoggedIn ? (
-          <button
-            onClick={() => setActiveTab('settings')}
+          <Link
+            to="/settings"
             className={`flex-1 flex flex-col items-center justify-center py-1.5 min-h-[48px] text-[10px] font-mono-code uppercase rounded-lg transition-all active:scale-95 cursor-pointer ${
               activeTab === 'settings'
                 ? 'text-[#00ffaa] font-bold bg-[#00ffaa]/10'
                 : 'text-[#edeeef]/60 hover:text-[#edeeef]'
             }`}
           >
-            <img
-              src={currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300'}
-              alt="Settings"
-              className="w-5 h-5 rounded-full object-cover mb-0.5 border border-[#00ffaa]/50 shrink-0"
-            />
+            {(currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300') ? (
+              <img
+                src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300'}
+                alt="Settings"
+                className="w-5 h-5 rounded-full object-cover mb-0.5 border border-[#00ffaa]/50 shrink-0"
+              />
+            ) : null}
             <span>Profile</span>
-          </button>
+          </Link>
         ) : (
-          <button
-            onClick={() => setActiveTab('auth')}
+          <Link
+            to="/auth"
             className={`flex-1 flex flex-col items-center justify-center py-1.5 min-h-[48px] text-[10px] font-mono-code uppercase rounded-lg transition-all active:scale-95 cursor-pointer ${
               activeTab === 'auth'
                 ? 'text-[#00ffaa] font-bold bg-[#00ffaa]/10'
@@ -286,7 +302,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <UserIcon className="w-5 h-5 mb-0.5" />
             <span>Account</span>
-          </button>
+          </Link>
         )}
       </nav>
     </>

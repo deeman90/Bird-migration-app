@@ -22,6 +22,7 @@ import {
   PlusCircle,
   Clock
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface SightingsTableProps {
   sightings: Sighting[];
@@ -215,13 +216,13 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
           )}
 
           {/* Log Sighting Quick Button */}
-          <button
-            onClick={onOpenLogModal}
+          <Link
+            to="/log"
             className="min-h-[38px] px-4 py-2 rounded-md bg-[#00ffaa] hover:bg-[#00ffaa]/90 text-[#0b0c0d] font-syne font-extrabold text-xs uppercase tracking-wider shadow-md shadow-[#00ffaa]/20 transition-all flex items-center justify-center space-x-1.5 shrink-0 cursor-pointer"
           >
             <PlusCircle className="w-3.5 h-3.5" />
             <span>Log Sighting</span>
-          </button>
+          </Link>
         </div>
 
         {/* Scope Pills & Table Stats */}
@@ -389,13 +390,17 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
                     >
                       {/* Photo Thumbnail */}
                       <td className="p-2 sm:px-3 sm:py-2.5 text-center">
-                        <div className="relative w-10 h-10 rounded overflow-hidden bg-[#121417] border border-[rgba(237,238,239,0.15)] mx-auto shrink-0">
-                          <img
-                            src={s.photoUrl}
-                            alt={s.speciesName}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
-                            loading="lazy"
-                          />
+                        <div className="relative w-10 h-10 rounded overflow-hidden bg-[#121417] border border-[rgba(237,238,239,0.15)] mx-auto shrink-0 flex items-center justify-center">
+                          {s.photoUrl ? (
+                            <img
+                              src={s.photoUrl}
+                              alt={s.speciesName}
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="text-[9px] font-mono-code text-[#edeeef]/40 uppercase">N/A</span>
+                          )}
                         </div>
                       </td>
 
@@ -433,11 +438,17 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
                       {/* Observer Profile */}
                       <td className="p-3 sm:px-4 sm:py-3 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
-                          <img
-                            src={s.userAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
-                            alt={s.userName}
-                            className="w-6 h-6 rounded-full object-cover ring-1 ring-[rgba(237,238,239,0.15)]"
-                          />
+                          {(s.userAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100') ? (
+                            <img
+                              src={s.userAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                              alt={s.userName}
+                              className="w-6 h-6 rounded-full object-cover ring-1 ring-[rgba(237,238,239,0.15)]"
+                            />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-300">
+                              {(s.userName || 'U').charAt(0)}
+                            </div>
+                          )}
                           <div className="flex flex-col">
                             <div className="flex items-center space-x-1">
                               <span className="font-semibold text-xs text-[#edeeef]">

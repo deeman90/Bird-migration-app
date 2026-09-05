@@ -125,11 +125,17 @@ export const VIPHotspots: React.FC<VIPHotspotsProps> = ({
               <div>
                 {/* Photo Header */}
                 <div className="relative h-44 overflow-hidden bg-slate-950">
-                  <img
-                    src={hs.photoUrl}
-                    alt={hs.name}
-                    className={`w-full h-full object-cover ${isLocked ? 'blur-sm opacity-60' : 'hover:scale-105 transition-transform duration-300'}`}
-                  />
+                  {hs.photoUrl ? (
+                    <img
+                      src={hs.photoUrl}
+                      alt={hs.name}
+                      className={`w-full h-full object-cover ${isLocked ? 'blur-sm opacity-60' : 'hover:scale-105 transition-transform duration-300'}`}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-500 font-mono text-xs">
+                      No Photo
+                    </div>
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent"></div>
 
                   <div className="absolute top-3 left-3 flex items-center space-x-1.5">

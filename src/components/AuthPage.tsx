@@ -20,8 +20,10 @@ import {
   CheckCircle2,
   KeyRound,
   Github,
-  HelpCircle
+  HelpCircle,
+  ArrowLeft
 } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
 import { INITIAL_USER_FREE, INITIAL_USER_PAID } from '../data/mockData';
 import { BMALogo } from './BMALogo';
 
@@ -73,6 +75,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   onLoginSuccess,
   onGoToTab,
 }) => {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
 
   // Login Form States
@@ -204,8 +207,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       setSuccessMsg(`Welcome back, ${authenticatedUser.name}!`);
       setTimeout(() => {
         onLoginSuccess(authenticatedUser);
-        onGoToTab('map');
-        if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
+        if (onGoToTab) onGoToTab('map');
+        // Programmatic navigation after login click
+        navigate('/');
       }, 400);
     } catch (err: any) {
       setErrorMsg(err?.message || 'Failed to sign in. Please try again.');
@@ -310,12 +314,36 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setSuccessMsg(`Switched to demo user ${user.name} (${user.tier.toUpperCase()})...`);
     setTimeout(() => {
       onLoginSuccess(user);
-      onGoToTab('map');
+      if (onGoToTab) onGoToTab('map');
+      // Programmatic navigation after login click
+      navigate('/');
     }, 600);
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-slate-950 py-10 px-4 sm:px-6 lg:px-8 flex items-center justify-center relative overflow-hidden">
+    <div className="min-h-[calc(100vh-4rem)] bg-slate-950 py-8 px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center relative overflow-hidden">
+      {/* Top Back Navigation Bar */}
+      <div className="w-full max-w-4xl mb-4 flex items-center justify-between z-20">
+        <button
+          type="button"
+          onClick={() => {
+            // Pass -1 into the navigate function to move one step back in the history stack
+            navigate(-1);
+          }}
+          className="inline-flex items-center space-x-1.5 text-xs font-mono-code text-slate-400 hover:text-white px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-900/80 transition-all cursor-pointer shadow-sm"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>← Back to Previous Screen</span>
+        </button>
+        <Link
+          to="/"
+          className="text-xs font-mono-code text-[#00ffaa] hover:underline inline-flex items-center space-x-1"
+        >
+          <span>Flyway Map</span>
+          <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+
       {/* Background Decorative Gradients */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-[400px] h-[400px] bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -328,7 +356,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           
           <div>
             <div className="mb-6">
-              <BMALogo id="bma-auth-hero-logo" className="h-12 w-auto shadow-lg shadow-emerald-500/20 rounded-xl" />
+              <Link to="/" title="AeroTrack Home" className="inline-block transition-transform hover:scale-105">
+                <BMALogo id="bma-auth-hero-logo" className="h-12 w-auto shadow-lg shadow-emerald-500/20 rounded-xl" />
+              </Link>
             </div>
 
             <h2 className="text-2xl font-bold text-white mb-4 leading-tight">
@@ -731,7 +761,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                             : 'border-slate-800 hover:border-slate-700 opacity-60 hover:opacity-100'
                         }`}
                       >
-                        <img src={av.url} alt={av.name} className="w-9 h-9 rounded-full object-cover" />
+                        {av.url ? (
+                          <img src={av.url} alt={av.name} className="w-9 h-9 rounded-full object-cover" />
+                        ) : null}
                       </button>
                     ))}
                   </div>

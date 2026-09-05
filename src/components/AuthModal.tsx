@@ -83,11 +83,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               }`}
             >
               <div className="flex items-center space-x-3">
-                <img
-                  src={INITIAL_USER_FREE.avatar}
-                  alt={INITIAL_USER_FREE.name}
-                  className="w-10 h-10 rounded-full object-cover"
-                />
+                {INITIAL_USER_FREE.avatar ? (
+                  <img
+                    src={INITIAL_USER_FREE.avatar}
+                    alt={INITIAL_USER_FREE.name}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                ) : null}
                 <div>
                   <div className="flex items-center space-x-2">
                     <span className="font-bold text-sm text-white">{INITIAL_USER_FREE.name}</span>
@@ -119,11 +121,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               }`}
             >
               <div className="flex items-center space-x-3">
-                <img
-                  src={INITIAL_USER_PAID.avatar}
-                  alt={INITIAL_USER_PAID.name}
-                  className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400"
-                />
+                {INITIAL_USER_PAID.avatar ? (
+                  <img
+                    src={INITIAL_USER_PAID.avatar}
+                    alt={INITIAL_USER_PAID.name}
+                    className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400"
+                  />
+                ) : null}
                 <div>
                   <div className="flex items-center space-x-2">
                     <span className="font-bold text-sm text-white">{INITIAL_USER_PAID.name}</span>

@@ -34,10 +34,30 @@ import {
 } from './services/sightingsService';
 import { fetchUserProfile, saveUserProfile } from './services/userService.js';
 import { CheckCircle2, Sparkles, AlertCircle, Compass, Lock } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export default function App() {
-  // Navigation State
-  const [activeTab, setActiveTab] = useState<'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings'>('map');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Tab mapped dynamically from current router URL path
+  const getTabFromPath = (path: string): 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings' => {
+    if (path.startsWith('/log')) return 'log';
+    if (path.startsWith('/feed')) return 'feed';
+    if (path.startsWith('/leaderboard') || path.startsWith('/ranks')) return 'leaderboard';
+    if (path.startsWith('/hotspots')) return 'hotspots';
+    if (path.startsWith('/auth') || path.startsWith('/login') || path.startsWith('/signup')) return 'auth';
+    if (path.startsWith('/settings') || path.startsWith('/profile')) return 'settings';
+    return 'map';
+  };
+
+  const activeTab = getTabFromPath(location.pathname);
+  const setActiveTab = (tab: 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings') => {
+    const targetPath = tab === 'map' ? '/' : `/${tab}`;
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
+    }
+  };
 
   // App Core Data States with localStorage persistence
   const [currentUser, setCurrentUser] = useState<User>(() => {
@@ -203,10 +223,10 @@ export default function App() {
     }
     setSession(null);
     showToast('Signed out successfully.', 'success');
-    setActiveTab('auth');
+    navigate('/auth');
   };
 
-  // Protect private pages with supabase.auth.getSession() — if no session, redirect to /login
+  // Protect private pages with supabase.auth.getSession() — if no session, redirect to /auth
   useEffect(() => {
     const privatePages = ['settings', 'log'];
     if (privatePages.includes(activeTab)) {
@@ -214,10 +234,7 @@ export default function App() {
         supabase.auth.getSession().then(({ data }) => {
           if (!data?.session) {
             showToast('Please sign in to access this page.', 'success');
-            setActiveTab('auth');
-            if (typeof window !== 'undefined') {
-              window.history.pushState({}, '', '/login');
-            }
+            navigate('/auth');
           }
         }).catch((err) => {
           console.warn('Auth check notice:', err);

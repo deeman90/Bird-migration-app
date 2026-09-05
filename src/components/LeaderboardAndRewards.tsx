@@ -57,11 +57,17 @@ export const LeaderboardAndRewards: React.FC<LeaderboardAndRewardsProps> = ({
 
           {/* User Score Summary Card */}
           <div className="bg-slate-950/80 border border-amber-500/30 p-4 rounded-2xl flex items-center space-x-4 shadow-xl shrink-0">
-            <img
-              src={currentUser.avatar}
-              alt={currentUser.name}
-              className="w-12 h-12 rounded-full object-cover ring-2 ring-amber-400"
-            />
+            {currentUser.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.name}
+                className="w-12 h-12 rounded-full object-cover ring-2 ring-amber-400"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-slate-800 ring-2 ring-amber-400 flex items-center justify-center text-amber-300 font-bold text-sm">
+                {(currentUser.name || 'U').charAt(0)}
+              </div>
+            )}
             <div>
               <p className="text-xs text-amber-400 font-semibold uppercase tracking-wider">Your Contribution</p>
               <h4 className="text-lg font-bold text-white">{currentUser.name}</h4>
@@ -190,7 +196,13 @@ export const LeaderboardAndRewards: React.FC<LeaderboardAndRewardsProps> = ({
             {top3[1] && (
               <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl text-center flex flex-col items-center justify-between order-2 sm:order-1">
                 <span className="text-2xl mb-1">🥈</span>
-                <img src={top3[1].avatar} alt={top3[1].name} className="w-16 h-16 rounded-full object-cover ring-4 ring-slate-400 mb-2" />
+                {top3[1].avatar ? (
+                  <img src={top3[1].avatar} alt={top3[1].name} className="w-16 h-16 rounded-full object-cover ring-4 ring-slate-400 mb-2" />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-slate-800 ring-4 ring-slate-400 mb-2 flex items-center justify-center font-bold text-slate-300">
+                    {top3[1].name.charAt(0)}
+                  </div>
+                )}
                 <h4 className="font-bold text-sm text-white">{top3[1].name}</h4>
                 <p className="text-xs text-slate-400">{top3[1].region}</p>
                 <div className="mt-3 bg-slate-900 w-full py-1.5 rounded-xl text-xs text-emerald-400 font-bold">
@@ -203,7 +215,13 @@ export const LeaderboardAndRewards: React.FC<LeaderboardAndRewardsProps> = ({
             {top3[0] && (
               <div className="bg-gradient-to-b from-amber-500/20 to-slate-950 border-2 border-amber-500/60 p-6 rounded-2xl text-center flex flex-col items-center justify-between shadow-2xl order-1 sm:order-2 transform sm:-translate-y-2">
                 <span className="text-3xl mb-1">👑</span>
-                <img src={top3[0].avatar} alt={top3[0].name} className="w-20 h-20 rounded-full object-cover ring-4 ring-amber-400 mb-2 shadow-xl" />
+                {top3[0].avatar ? (
+                  <img src={top3[0].avatar} alt={top3[0].name} className="w-20 h-20 rounded-full object-cover ring-4 ring-amber-400 mb-2 shadow-xl" />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-slate-800 ring-4 ring-amber-400 mb-2 shadow-xl flex items-center justify-center font-bold text-amber-300 text-lg">
+                    {top3[0].name.charAt(0)}
+                  </div>
+                )}
                 <h4 className="font-extrabold text-base text-amber-300">{top3[0].name}</h4>
                 <p className="text-xs text-amber-200/80 font-medium">{top3[0].badgeTitle}</p>
                 <div className="mt-3 bg-amber-500 text-slate-950 w-full py-2 rounded-xl text-xs font-extrabold shadow-lg">
@@ -216,7 +234,13 @@ export const LeaderboardAndRewards: React.FC<LeaderboardAndRewardsProps> = ({
             {top3[2] && (
               <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl text-center flex flex-col items-center justify-between order-3">
                 <span className="text-2xl mb-1">🥉</span>
-                <img src={top3[2].avatar} alt={top3[2].name} className="w-16 h-16 rounded-full object-cover ring-4 ring-amber-700 mb-2" />
+                {top3[2].avatar ? (
+                  <img src={top3[2].avatar} alt={top3[2].name} className="w-16 h-16 rounded-full object-cover ring-4 ring-amber-700 mb-2" />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-slate-800 ring-4 ring-amber-700 mb-2 flex items-center justify-center font-bold text-amber-600">
+                    {top3[2].name.charAt(0)}
+                  </div>
+                )}
                 <h4 className="font-bold text-sm text-white">{top3[2].name}</h4>
                 <p className="text-xs text-slate-400">{top3[2].region}</p>
                 <div className="mt-3 bg-slate-900 w-full py-1.5 rounded-xl text-xs text-emerald-400 font-bold">
@@ -254,7 +278,13 @@ export const LeaderboardAndRewards: React.FC<LeaderboardAndRewardsProps> = ({
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-300">#{usr.rank}</td>
                     <td className="py-3.5 px-4">
                       <div className="flex items-center space-x-3">
-                        <img src={usr.avatar} alt={usr.name} className="w-8 h-8 rounded-full object-cover" />
+                        {usr.avatar ? (
+                          <img src={usr.avatar} alt={usr.name} className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 text-xs font-bold">
+                            {usr.name.charAt(0)}
+                          </div>
+                        )}
                         <div>
                           <div className="flex items-center space-x-2">
                             <span className="font-bold text-slate-100">{usr.name}</span>

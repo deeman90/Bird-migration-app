@@ -7,6 +7,7 @@ import { computeImageHash, checkDuplicateImage } from '../utils/imageHasher';
 import { optimizeImageForApi } from '../utils/imageOptimizer';
 import { safeFetchJson, extractErrorMessage } from '../utils/apiClient';
 import { Camera, MapPin, Upload, Navigation, CheckCircle2, AlertCircle, Sparkles, Plus, Image as ImageIcon, Crosshair, RefreshCw, Tag, ShieldCheck, Search, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
 
 interface SightingLoggerProps {
   speciesList: BirdSpecies[];
@@ -40,6 +41,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
   onOpenRestrictionModal,
   existingSightings = [],
 }) => {
+  const navigate = useNavigate();
   const [selectedSpeciesId, setSelectedSpeciesId] = useState<string>(speciesList[0]?.id || '');
   const [customSpeciesName, setCustomSpeciesName] = useState<string>('');
   const [useCustomSpecies, setUseCustomSpecies] = useState<boolean>(false);
@@ -574,6 +576,9 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
         spread: 70,
         origin: { y: 0.6 },
       });
+
+      // Programmatic navigation after form submission
+      navigate('/');
     } catch (err: any) {
       console.error('Error constructing or adding sighting:', err);
       setLoggerError(err?.message || 'Failed to publish observation. Please check required fields and try again.');
@@ -584,6 +589,16 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-8 text-[#edeeef]">
+      {/* Declarative Return Navigation Link */}
+      <div className="mb-3">
+        <Link
+          to="/"
+          className="inline-flex items-center space-x-1.5 text-xs font-mono-code text-[#00ffaa]/80 hover:text-[#00ffaa] hover:underline transition-colors"
+        >
+          <span>← Back to Flyway Map</span>
+        </Link>
+      </div>
+
       <div className="border border-[rgba(237,238,239,0.1)] rounded p-4 sm:p-8 text-[#edeeef] bg-[#0b0c0d] shadow-2xl space-y-6">
         
         {/* Active Account Restriction Notice */}
@@ -933,9 +948,9 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
               {/* Photo Preview */}
               <div className="relative w-28 h-28 rounded overflow-hidden border border-[rgba(237,238,239,0.15)] bg-[rgba(237,238,239,0.03)] flex items-center justify-center shrink-0">
-                {previewImage ? (
+                {previewImage && previewImage.trim() ? (
                   <div className="relative w-full h-full group">
-                    <img src={previewImage} alt="Preview" className="w-full h-full object-cover" />
+                    <img src={previewImage.trim()} alt="Preview" className="w-full h-full object-cover" />
                     {isSimulatingWebDownload && (
                       <div className="absolute inset-0 bg-rose-950/80 flex items-center justify-center p-1 text-center text-rose-300 font-mono-code text-[10px] font-bold uppercase tracking-wider">
                         Web Download Flagged
@@ -1167,15 +1182,17 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
 
           {/* Form Actions */}
           <div className="pt-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 border-t border-[rgba(237,238,239,0.1)]">
-            {onCancel && (
-              <button
-                type="button"
-                onClick={onCancel}
-                className="min-h-[44px] px-5 py-2.5 rounded border border-[rgba(237,238,239,0.2)] text-[#edeeef]/70 hover:bg-[rgba(237,238,239,0.05)] text-xs font-mono-code uppercase tracking-wider transition-colors cursor-pointer text-center"
-              >
-                Cancel
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (onCancel) onCancel();
+                // Pass -1 into navigate to move one step back in the history stack
+                navigate(-1);
+              }}
+              className="min-h-[44px] px-5 py-2.5 rounded border border-[rgba(237,238,239,0.2)] text-[#edeeef]/70 hover:bg-[rgba(237,238,239,0.05)] text-xs font-mono-code uppercase tracking-wider transition-colors cursor-pointer text-center"
+            >
+              Cancel
+            </button>
 
             <button
               type="submit"

@@ -20,6 +20,7 @@ import {
   Database
 } from 'lucide-react';
 import { SightingsTable } from './SightingsTable';
+import { Link } from 'react-router-dom';
 
 interface CommunityFeedProps {
   sightings: Sighting[];
@@ -165,13 +166,13 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
             </button>
           </div>
 
-          <button
-            onClick={onOpenLogModal}
+          <Link
+            to="/log"
             className="min-h-[40px] px-4 sm:px-5 py-2 rounded bg-[#00ffaa] hover:bg-[#00ffaa]/90 text-[#0b0c0d] font-syne font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-[#00ffaa]/20 transition-all flex items-center justify-center space-x-2 shrink-0 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
             <span>Log Observation</span>
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -362,11 +363,17 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
               {/* Card Header (User profile + Tier) */}
               <div className="p-3.5 sm:p-5 flex items-center justify-between border-b border-[rgba(237,238,239,0.1)]">
                 <div className="flex items-center space-x-3">
-                  <img
-                    src={s.userAvatar}
-                    alt={s.userName}
-                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover ring-1 ring-[rgba(237,238,239,0.2)]"
-                  />
+                  {s.userAvatar ? (
+                    <img
+                      src={s.userAvatar}
+                      alt={s.userName}
+                      className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover ring-1 ring-[rgba(237,238,239,0.2)]"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 ring-1 ring-[rgba(237,238,239,0.2)]">
+                      {(s.userName || 'U').charAt(0)}
+                    </div>
+                  )}
                   <div>
                     <div className="flex items-center space-x-2">
                       <span className="font-syne font-bold text-sm text-[#edeeef]">{s.userName}</span>
@@ -396,11 +403,17 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2">
                 {/* Photo */}
                 <div className="relative group bg-[#0b0c0d] aspect-video md:aspect-auto overflow-hidden">
-                  <img
-                    src={s.photoUrl}
-                    alt={s.speciesName}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
+                  {s.photoUrl ? (
+                    <img
+                      src={s.photoUrl}
+                      alt={s.speciesName}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full min-h-[220px] flex items-center justify-center bg-[rgba(237,238,239,0.03)] text-[#edeeef]/40 font-mono-code text-xs uppercase">
+                      No Photo Available
+                    </div>
+                  )}
                   {s.isHotspotExclusive && (
                     <div className="absolute top-2.5 left-2.5 bg-[#0b0c0d]/90 text-amber-300 border border-amber-400/40 text-[10px] font-mono-code font-bold px-2 py-1 rounded backdrop-blur-md flex items-center space-x-1 uppercase">
                       <Sparkles className="w-3 h-3" />
