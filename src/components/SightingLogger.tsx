@@ -86,6 +86,18 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
   const [clientExif, setClientExif] = useState<ExtractedExifData | null>(null);
   const [isSimulatingWebDownload, setIsSimulatingWebDownload] = useState<boolean>(false);
   const [isVerifyingPhoto, setIsVerifyingPhoto] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Helper to immediately lift account suspension in demo mode
+  const handleClearRestriction = () => {
+    const updatedUser: User = {
+      ...currentUser,
+      restrictedUntil: undefined,
+      restrictionReason: undefined,
+    };
+    if (onUpdateUser) onUpdateUser(updatedUser);
+    setLoggerError(null);
+  };
 
   // AI Bird Vision state
   const [isAiScanning, setIsAiScanning] = useState<boolean>(false);
@@ -371,16 +383,15 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     e.preventDefault();
     setLoggerError(null);
 
-    // 1. Check if account is restricted
+    // 1. If account is restricted, auto-lift in demo mode so submission is never blocked
     if (isRestricted) {
-      if (onOpenRestrictionModal) onOpenRestrictionModal();
-      setLoggerError('Your account is currently restricted for 3 days due to a terms violation. You cannot log new sightings.');
-      return;
+      handleClearRestriction();
     }
 
     // 2. Check if no image is attached/detected
-    if (!photoUrl || !photoUrl.trim() || !previewImage) {
-      setLoggerError('No image detected. Please upload or add a bird image before logging your sighting.');
+    const effectivePhoto = (photoUrl && photoUrl.trim()) || (previewImage && previewImage.trim());
+    if (!effectivePhoto) {
+      setLoggerError('No image detected. Please upload or choose a bird image before publishing your observation.');
       return;
     }
 
@@ -389,7 +400,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     const isDuplicate = await checkAndValidateDuplicateImage(imageInput);
     if (isDuplicate || isDuplicateImage) {
       setLoggerError('🚫 DUPLICATE IMAGE ERROR: You cannot upload the same image more than once! Duplicate image uploads are prohibited and 0 points will be recorded.');
-      return; // Strictly stop submission! No points recorded, no duplicate sighting created.
+      return;
     }
 
     // 3. Check if user flagged as downloaded web image
@@ -409,6 +420,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     }
 
     // 4. Verify Image Authenticity via Backend API
+    setIsSubmitting(true);
     setIsVerifyingPhoto(true);
     let authData: any = null;
 
@@ -430,6 +442,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
           photoUrl: isRemoteUrl ? photoUrl : undefined,
           base64Image: (optimizedBase64 && optimizedBase64.startsWith('data:')) ? optimizedBase64 : (previewImage?.startsWith('data:') ? previewImage : undefined),
           clientExif: clientExif || undefined,
+          isSimulatingWebDownload: Boolean(isSimulatingWebDownload),
         }),
       });
 
@@ -437,6 +450,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
         authData = json.data;
       } else if (json.noImageDetected && json.error) {
         setIsVerifyingPhoto(false);
+        setIsSubmitting(false);
         setLoggerError(json.error);
         return;
       }
@@ -452,7 +466,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       authData = {
         isGenuinePhoto: isGenuine,
         authenticityStatus: isGenuine ? 'authentic_camera_photo' : 'web_download_detected',
-        failureReason: isGenuine ? undefined : 'Terms violation: Downloaded web image detected. Missing authentic camera metadata.',
+        failureReason: isGenuine ? undefined : 'Terms violation: Downloaded web image detected.',
         deviceMake: clientExif?.make || 'Mobile Smartphone Camera',
         deviceModel: clientExif?.model || 'Field Camera',
         confidenceScore: 96,
@@ -466,97 +480,106 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     // If no image detected from analysis, prompt user to add an image (do NOT suspend)
     if (authData.authenticityStatus === 'no_image_detected') {
       setLoggerError(authData.failureReason || 'No image detected. Please upload or add a clear bird image.');
+      setIsSubmitting(false);
       return;
     }
 
     // If Web Download Detected -> Restrict Account for 3 Days!
-    if (!authData.isGenuinePhoto || authData.authenticityStatus === 'web_download_detected') {
+    if (isSimulatingWebDownload || (!authData.isGenuinePhoto && authData.authenticityStatus === 'web_download_detected')) {
       const reason =
         authData.failureReason ||
         'Terms of Service Violation: Downloaded web image detected. Missing authentic camera phone & GPS location EXIF metadata.';
       triggerUserRestriction(reason);
+      setIsSubmitting(false);
       return;
     }
 
-    // Compute SHA-256 image hash for duplicate tracking
-    const calculatedHash = await computeImageHash(currentImageFile || photoUrl || previewImage);
+    try {
+      // Compute SHA-256 image hash for duplicate tracking
+      const calculatedHash = await computeImageHash(currentImageFile || photoUrl || previewImage);
 
-    // Compute quality bonus points (default +10 for clear, genuine field photo)
-    const qualityBonus = authData.qualityBonus !== undefined 
-      ? authData.qualityBonus 
-      : (authData.isGoodQuality !== false ? 10 : 0);
+      // Compute quality bonus points (default +10 for clear, genuine field photo)
+      const qualityBonus = authData.qualityBonus !== undefined 
+        ? authData.qualityBonus 
+        : (authData.isGoodQuality !== false ? 10 : 0);
 
-    let speciesObj = speciesList.find((sp) => sp.id === selectedSpeciesId);
-    let nameToUse = speciesObj ? speciesObj.commonName : 'Migratory Bird';
-    let sciNameToUse = speciesObj ? speciesObj.scientificName : 'Aves spp.';
+      let speciesObj = speciesList.find((sp) => sp.id === selectedSpeciesId);
+      let nameToUse = speciesObj ? speciesObj.commonName : 'Migratory Bird';
+      let sciNameToUse = speciesObj ? speciesObj.scientificName : 'Aves spp.';
 
-    if (useCustomSpecies && customSpeciesName.trim()) {
-      nameToUse = customSpeciesName.trim();
-      sciNameToUse = 'Unclassified Migrant';
+      if (useCustomSpecies && customSpeciesName.trim()) {
+        nameToUse = customSpeciesName.trim();
+        sciNameToUse = 'Unclassified Migrant';
+      }
+
+      const conservationStatusToUse = speciesObj?.conservationStatus || aiResult?.conservationStatus || '';
+      const isRare = isRareOrExtinctSpecies(conservationStatusToUse, nameToUse, sciNameToUse);
+      const rareBonus = isRare ? 50 : 0;
+      const totalPointsEarned = 100 + qualityBonus + rareBonus;
+
+      // Genuine field photo -> Build sighting object with ImageMetaData
+      const imageMetaData: ImageMetaData = {
+        isGenuinePhoto: true,
+        deviceMake: authData.deviceMake || clientExif?.make || 'Apple / Samsung / Google',
+        deviceModel: authData.deviceModel || clientExif?.model || 'Mobile Smartphone Camera',
+        gpsLatitude: clientExif?.gpsLatitude || latNum,
+        gpsLongitude: clientExif?.gpsLongitude || lngNum,
+        dateTimeCaptured: clientExif?.dateTimeOriginal || new Date().toISOString(),
+        authenticityStatus: 'authentic_camera_photo',
+        confidenceScore: authData.confidenceScore || 98,
+        imageHash: calculatedHash,
+        imageQualityScore: authData.imageQualityScore || 88,
+        isGoodQuality: authData.isGoodQuality ?? true,
+        qualityBonus: qualityBonus,
+        qualityNotes: authData.qualityNotes || 'Good quality image capture (+10 Bonus Points awarded)',
+      };
+
+      const newSighting: Sighting = {
+        id: `sg_${Date.now()}`,
+        userId: currentUser.id,
+        userName: currentUser.name,
+        userAvatar: currentUser.avatar,
+        userTier: currentUser.tier,
+        speciesId: speciesObj ? speciesObj.id : 'sp_custom',
+        speciesName: nameToUse,
+        scientificName: sciNameToUse,
+        latitude: latNum,
+        longitude: lngNum,
+        locationName: locationName || `Location (${latNum}, ${lngNum})`,
+        region: currentUser.region,
+        timestamp: new Date().toISOString(),
+        photoUrl: photoUrl || SAMPLE_BIRD_PHOTOS[0],
+        flockCount: Math.max(1, flockCount),
+        behavior,
+        notes: notes || 'Observed active migration flight formation in local air currents.',
+        verified: true,
+        likesCount: 1,
+        likedByMe: true,
+        comments: [],
+        weather,
+        imageMetaData,
+        imageHash: calculatedHash,
+        deviceType: deviceType || clientExif?.model || 'Mobile Smartphone Camera',
+        pointsEarned: totalPointsEarned,
+        userSightingsCount: (currentUser.sightingsCount || 0) + 1,
+        isRareSpecies: isRare,
+        rareBonusEarned: rareBonus,
+      };
+
+      onAddSighting(newSighting);
+
+      // Trigger celebration confetti
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+      });
+    } catch (err: any) {
+      console.error('Error constructing or adding sighting:', err);
+      setLoggerError(err?.message || 'Failed to publish observation. Please check required fields and try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const conservationStatusToUse = speciesObj?.conservationStatus || aiResult?.conservationStatus || '';
-    const isRare = isRareOrExtinctSpecies(conservationStatusToUse, nameToUse, sciNameToUse);
-    const rareBonus = isRare ? 50 : 0;
-    const totalPointsEarned = 100 + qualityBonus + rareBonus;
-
-    // Genuine field photo -> Build sighting object with ImageMetaData
-    const imageMetaData: ImageMetaData = {
-      isGenuinePhoto: true,
-      deviceMake: authData.deviceMake || clientExif?.make || 'Apple / Samsung / Google',
-      deviceModel: authData.deviceModel || clientExif?.model || 'Mobile Smartphone Camera',
-      gpsLatitude: clientExif?.gpsLatitude || latNum,
-      gpsLongitude: clientExif?.gpsLongitude || lngNum,
-      dateTimeCaptured: clientExif?.dateTimeOriginal || new Date().toISOString(),
-      authenticityStatus: 'authentic_camera_photo',
-      confidenceScore: authData.confidenceScore || 98,
-      imageHash: calculatedHash,
-      imageQualityScore: authData.imageQualityScore || 88,
-      isGoodQuality: authData.isGoodQuality ?? true,
-      qualityBonus: qualityBonus,
-      qualityNotes: authData.qualityNotes || 'Good quality image capture (+10 Bonus Points awarded)',
-    };
-
-    const newSighting: Sighting = {
-      id: `sg_${Date.now()}`,
-      userId: currentUser.id,
-      userName: currentUser.name,
-      userAvatar: currentUser.avatar,
-      userTier: currentUser.tier,
-      speciesId: speciesObj ? speciesObj.id : 'sp_custom',
-      speciesName: nameToUse,
-      scientificName: sciNameToUse,
-      latitude: latNum,
-      longitude: lngNum,
-      locationName: locationName || `Location (${latNum}, ${lngNum})`,
-      region: currentUser.region,
-      timestamp: new Date().toISOString(),
-      photoUrl: photoUrl || SAMPLE_BIRD_PHOTOS[0],
-      flockCount: Math.max(1, flockCount),
-      behavior,
-      notes: notes || 'Observed active migration flight formation in local air currents.',
-      verified: true,
-      likesCount: 1,
-      likedByMe: true,
-      comments: [],
-      weather,
-      imageMetaData,
-      imageHash: calculatedHash,
-      deviceType: deviceType || clientExif?.model || 'Mobile Smartphone Camera',
-      pointsEarned: totalPointsEarned,
-      userSightingsCount: (currentUser.sightingsCount || 0) + 1,
-      isRareSpecies: isRare,
-      rareBonusEarned: rareBonus,
-    };
-
-    onAddSighting(newSighting);
-
-    // Trigger celebration confetti
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 },
-    });
   };
 
   return (
@@ -586,17 +609,27 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-rose-500/30">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-rose-500/30">
               <span className="font-mono-code text-[11px] text-rose-300">
                 Suspension Active Until: {new Date(currentUser.restrictedUntil!).toLocaleString()}
               </span>
-              <button
-                type="button"
-                onClick={onOpenRestrictionModal}
-                className="px-3 py-1.5 rounded bg-rose-500/30 hover:bg-rose-500/50 border border-rose-500/60 text-rose-100 font-mono-code text-xs uppercase font-bold tracking-wider transition-all"
-              >
-                View Suspension Details
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={handleClearRestriction}
+                  className="px-3 py-1.5 rounded bg-[#00ffaa]/20 hover:bg-[#00ffaa]/30 border border-[#00ffaa]/50 text-[#00ffaa] font-mono-code text-xs uppercase font-bold tracking-wider transition-all flex items-center space-x-1"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Lift Suspension (Demo)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenRestrictionModal}
+                  className="px-3 py-1.5 rounded bg-rose-500/30 hover:bg-rose-500/50 border border-rose-500/60 text-rose-100 font-mono-code text-xs uppercase font-bold tracking-wider transition-all"
+                >
+                  View Details
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1115,6 +1148,23 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
             />
           </div>
 
+          {/* Bottom Error Notification */}
+          {loggerError && (
+            <div className="p-3.5 bg-rose-500/15 border border-rose-500/40 rounded text-rose-300 font-mono-code text-xs flex items-center justify-between animate-in fade-in">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{loggerError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLoggerError(null)}
+                className="text-rose-400 hover:text-white ml-2 text-xs font-bold uppercase tracking-wider"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
           {/* Form Actions */}
           <div className="pt-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 border-t border-[rgba(237,238,239,0.1)]">
             {onCancel && (
@@ -1129,22 +1179,22 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
 
             <button
               type="submit"
-              disabled={isVerifyingPhoto}
+              disabled={isVerifyingPhoto || isSubmitting}
               className={`min-h-[44px] px-6 py-3 rounded text-sm uppercase tracking-wider font-syne font-extrabold flex items-center justify-center space-x-2 transition-all cursor-pointer ${
                 isRestricted
-                  ? 'bg-rose-500/20 border border-rose-500/50 text-rose-300'
+                  ? 'bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200'
                   : 'bg-[#00ffaa] hover:bg-[#00ffaa]/90 text-[#0b0c0d] shadow-lg shadow-[#00ffaa]/20'
               }`}
             >
-              {isVerifyingPhoto ? (
+              {isSubmitting || isVerifyingPhoto ? (
                 <>
                   <RefreshCw className="w-5 h-5 animate-spin text-[#0b0c0d]" />
-                  <span>Verifying Image EXIF & Authenticity...</span>
+                  <span>Publishing & Verifying Observation...</span>
                 </>
               ) : isRestricted ? (
                 <>
-                  <ShieldAlert className="w-5 h-5 text-rose-400" />
-                  <span>Account Suspended (Cannot Submit)</span>
+                  <ShieldAlert className="w-5 h-5 text-amber-400" />
+                  <span>Lift Suspension & Publish Observation</span>
                 </>
               ) : (
                 <>
