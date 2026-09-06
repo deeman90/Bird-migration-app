@@ -20,7 +20,9 @@ import {
   Calendar,
   Layers,
   PlusCircle,
-  Clock
+  Clock,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -56,6 +58,8 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
   const [sortField, setSortField] = useState<SortField>('timestamp');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [selectedSighting, setSelectedSighting] = useState<Sighting | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
 
   const effectiveUserId = sessionUserId || currentUser.id;
 
@@ -125,6 +129,16 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
       return 0;
     });
   }, [filteredSightings, sortField, sortDirection]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedSightings.length / pageSize));
+  
+  // Keep current page within bounds if list shrinks
+  const safePage = Math.min(currentPage, totalPages);
+
+  const paginatedSightings = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return sortedSightings.slice(start, start + pageSize);
+  }, [sortedSightings, safePage, pageSize]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -381,7 +395,7 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
                   </td>
                 </tr>
               ) : (
-                sortedSightings.map((s) => {
+                paginatedSightings.map((s) => {
                   const owner = isOwner(s);
                   return (
                     <tr
@@ -558,7 +572,44 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
           </table>
         </div>
 
-        {/* Table Footer */}
+        {/* Table Pagination & Stats */}
+        {sortedSightings.length > 0 && (
+          <div className="px-4 py-3 bg-[#121417]/90 border-t border-[rgba(237,238,239,0.08)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-mono-code text-[#edeeef]/70">
+            <div>
+              Showing <span className="text-[#00ffaa] font-bold">{(safePage - 1) * pageSize + 1}</span> to{' '}
+              <span className="text-[#00ffaa] font-bold">{Math.min(safePage * pageSize, sortedSightings.length)}</span> of{' '}
+              <span className="text-[#00ffaa] font-bold">{sortedSightings.length}</span> records
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="px-2.5 py-1 rounded bg-[rgba(237,238,239,0.06)] hover:bg-[#00ffaa]/20 text-[#edeeef] hover:text-[#00ffaa] disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center space-x-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Prev</span>
+                </button>
+
+                <div className="px-2 py-0.5 text-xs text-[#edeeef]/60">
+                  Page <strong className="text-[#00ffaa]">{safePage}</strong> of <strong>{totalPages}</strong>
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="px-2.5 py-1 rounded bg-[rgba(237,238,239,0.06)] hover:bg-[#00ffaa]/20 text-[#edeeef] hover:text-[#00ffaa] disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center space-x-1"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Table Database Status Footer */}
         <div className="p-3 bg-[#121417] border-t border-[rgba(237,238,239,0.12)] flex flex-col sm:flex-row items-center justify-between text-[11px] font-mono-code text-[#edeeef]/50 gap-2">
           <div className="flex items-center space-x-2">
             <Database className="w-3.5 h-3.5 text-[#00ffaa]" />

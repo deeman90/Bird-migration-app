@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Sighting, User } from '../types';
 import { 
   Heart, 
@@ -61,49 +61,60 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
   const isFreeUser = currentUser.tier === 'free';
   const effectiveUserId = sessionUserId || currentUser.id;
 
-  // Free users can view their own bird log sightings
-  const accessibleSightings = isFreeUser
-    ? sightings.filter((s) => s.userId === effectiveUserId || s.userId === currentUser.id || Boolean(s.userName && currentUser?.name && s.userName.toLowerCase() === currentUser.name.toLowerCase()))
-    : sightings;
+  // Free users can view their own bird log sightings (memoized)
+  const accessibleSightings = useMemo(() => {
+    return isFreeUser
+      ? sightings.filter((s) => s.userId === effectiveUserId || s.userId === currentUser.id || Boolean(s.userName && currentUser?.name && s.userName.toLowerCase() === currentUser.name.toLowerCase()))
+      : sightings;
+  }, [isFreeUser, sightings, effectiveUserId, currentUser.id, currentUser.name]);
 
-  // Derive unique species and location regions for dropdown filters
-  const availableSpecies = Array.from(new Set(sightings.map((s) => s.speciesName).filter(Boolean))).sort();
-  const availableRegions = Array.from(
-    new Set(
-      sightings.map((s) => {
-        if (s.region) return s.region;
-        const parts = (s.locationName || '').split(',');
-        return parts[parts.length - 1]?.trim() || s.locationName;
-      }).filter(Boolean)
-    )
-  ).sort();
+  // Derive unique species and location regions for dropdown filters (memoized)
+  const availableSpecies = useMemo(() => {
+    return Array.from(new Set(sightings.map((s) => s.speciesName).filter(Boolean))).sort();
+  }, [sightings]);
 
-  const filteredSightings = accessibleSightings.filter((s) => {
+  const availableRegions = useMemo(() => {
+    return Array.from(
+      new Set(
+        sightings.map((s) => {
+          if (s.region) return s.region;
+          const parts = (s.locationName || '').split(',');
+          return parts[parts.length - 1]?.trim() || s.locationName;
+        }).filter(Boolean)
+      )
+    ).sort();
+  }, [sightings]);
+
+  const filteredSightings = useMemo(() => {
     const sTerm = (searchTerm || '').toLowerCase();
-    const matchesSearch =
-      (s.speciesName || '').toLowerCase().includes(sTerm) ||
-      (s.scientificName || '').toLowerCase().includes(sTerm) ||
-      (s.locationName || '').toLowerCase().includes(sTerm) ||
-      (s.userName || '').toLowerCase().includes(sTerm);
+    return accessibleSightings.filter((s) => {
+      if (sTerm) {
+        const matchesSearch =
+          (s.speciesName || '').toLowerCase().includes(sTerm) ||
+          (s.scientificName || '').toLowerCase().includes(sTerm) ||
+          (s.locationName || '').toLowerCase().includes(sTerm) ||
+          (s.userName || '').toLowerCase().includes(sTerm);
 
-    if (!matchesSearch) return false;
+        if (!matchesSearch) return false;
+      }
 
-    if (selectedSpecies !== 'All' && s.speciesName !== selectedSpecies) return false;
+      if (selectedSpecies !== 'All' && s.speciesName !== selectedSpecies) return false;
 
-    if (
-      selectedRegion !== 'All' &&
-      s.region !== selectedRegion &&
-      !(s.locationName || '').toLowerCase().includes((selectedRegion || '').toLowerCase())
-    ) {
-      return false;
-    }
+      if (
+        selectedRegion !== 'All' &&
+        s.region !== selectedRegion &&
+        !(s.locationName || '').toLowerCase().includes((selectedRegion || '').toLowerCase())
+      ) {
+        return false;
+      }
 
-    if (filterType === 'verified') return s.verified;
-    if (filterType === 'mine') return s.userId === currentUser.id || Boolean(s.userName && currentUser?.name && s.userName.toLowerCase() === currentUser.name.toLowerCase());
-    if (filterType === 'hotspots') return s.isHotspotExclusive;
+      if (filterType === 'verified') return s.verified;
+      if (filterType === 'mine') return s.userId === currentUser.id || Boolean(s.userName && currentUser?.name && s.userName.toLowerCase() === currentUser.name.toLowerCase());
+      if (filterType === 'hotspots') return s.isHotspotExclusive;
 
-    return true;
-  });
+      return true;
+    });
+  }, [accessibleSightings, searchTerm, selectedSpecies, selectedRegion, filterType, currentUser.id, currentUser.name]);
 
   const handleCommentSubmit = (sightingId: string, e: React.FormEvent) => {
     e.preventDefault();

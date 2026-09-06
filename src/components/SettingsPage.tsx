@@ -37,8 +37,13 @@ import {
   Code,
   ExternalLink,
   X,
+  Sun,
+  Moon,
+  Contrast,
+  Eye,
 } from 'lucide-react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useTheme } from '../context/ThemeContext';
 
 interface SettingsPageProps {
   currentUser: User;
@@ -91,7 +96,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onLogout,
 }) => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'profile' | 'address' | 'social' | 'notifications' | 'referral' | 'account'>('profile');
+  const { theme, isLight, isDark, toggleTheme, setTheme } = useTheme();
+  const [activeTab, setActiveTab] = useState<'profile' | 'address' | 'social' | 'notifications' | 'referral' | 'account' | 'theme'>('profile');
 
   // Local Form States initialized from currentUser
   const [name, setName] = useState(currentUser.name || '');
@@ -353,8 +359,43 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           </p>
         </div>
 
-        {/* Quick Action Button */}
-        <div className="flex items-center space-x-3">
+        {/* Quick Action Buttons: Global Theme Toggle + Save All Changes */}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            id="global-theme-toggle-btn"
+            onClick={toggleTheme}
+            className={`min-h-[44px] font-mono-code text-xs uppercase tracking-wider py-2.5 px-4 rounded border transition-all cursor-pointer flex items-center space-x-2.5 shadow-sm select-none ${
+              isLight
+                ? 'bg-amber-100 text-amber-950 border-amber-400 hover:bg-amber-200'
+                : 'bg-[rgba(237,238,239,0.06)] text-[#edeeef] border-[rgba(237,238,239,0.2)] hover:bg-[rgba(237,238,239,0.12)]'
+            }`}
+            title={
+              isLight
+                ? 'Outdoor Light Mode active. Click to switch to Obsidian Dark Mode.'
+                : 'Dark Theme active. Click to switch to High-Contrast Light Theme for outdoor visibility.'
+            }
+          >
+            {isLight ? (
+              <>
+                <Sun className="w-4 h-4 text-amber-600 shrink-0 animate-pulse" />
+                <span className="font-bold">Outdoor Light Mode</span>
+                <span className="text-[10px] bg-amber-600 text-white px-2 py-0.5 rounded font-bold ml-1">
+                  Active
+                </span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-cyan-400 shrink-0" />
+                <span className="font-semibold">Dark Theme</span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded font-bold ml-1 flex items-center gap-1">
+                  <Sun className="w-3 h-3 text-amber-400" />
+                  <span>Outdoor Mode</span>
+                </span>
+              </>
+            )}
+          </button>
+
           <button
             type="button"
             onClick={handleSubmit}
@@ -473,6 +514,34 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 <span className="whitespace-nowrap">Tier & Access</span>
               </div>
               <ChevronRight className="w-3.5 h-3.5 opacity-60 hidden lg:block" />
+            </button>
+
+            <button
+              id="settings-theme-tab-btn"
+              onClick={() => setActiveTab('theme')}
+              className={`min-h-[44px] shrink-0 lg:w-full flex items-center justify-between px-3.5 py-2.5 rounded text-xs font-mono-code uppercase tracking-wider transition-all cursor-pointer ${
+                activeTab === 'theme'
+                  ? 'bg-[#00ffaa] text-[#0b0c0d] font-bold'
+                  : 'text-[#edeeef]/60 hover:bg-[#edeeef]/5 hover:text-[#edeeef]'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                {isLight ? (
+                  <Sun className="w-4 h-4 text-amber-500 shrink-0" />
+                ) : (
+                  <Contrast className="w-4 h-4 shrink-0" />
+                )}
+                <span className="whitespace-nowrap">Display & Theme</span>
+              </div>
+              <span
+                className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                  isLight
+                    ? 'bg-amber-500/20 text-amber-800'
+                    : 'bg-white/10 text-[#edeeef]/70'
+                }`}
+              >
+                {isLight ? 'Light (Field)' : 'Dark'}
+              </span>
             </button>
           </div>
 
@@ -1237,6 +1306,318 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     </div>
                   </div>
                 )}
+
+              </div>
+            )}
+
+            {/* TAB 7: Display & Global Theme Toggle (Outdoor Visibility) */}
+            {activeTab === 'theme' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="border-b border-[rgba(237,238,239,0.1)] pb-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="font-syne text-xl font-bold text-[#edeeef] flex items-center space-x-2">
+                        <Contrast className="w-5 h-5 text-[#00ffaa]" />
+                        <span>Display & Theme Settings</span>
+                      </h2>
+                      <p className="font-mono-code text-xs text-[#edeeef]/60 uppercase tracking-wider mt-1">
+                        Switch between Obsidian Dark Mode and High-Contrast Light Theme for outdoor visibility.
+                      </p>
+                    </div>
+                    <span
+                      className={`text-xs font-mono-code px-2.5 py-1 rounded-full font-bold uppercase ${
+                        isLight
+                          ? 'bg-amber-500/20 text-amber-600 border border-amber-500/30'
+                          : 'bg-[#00ffaa]/15 text-[#00ffaa] border border-[#00ffaa]/30'
+                      }`}
+                    >
+                      {isLight ? 'Outdoor Light Active' : 'Obsidian Dark Active'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Primary Global Switch Action Bar */}
+                <div className="p-5 rounded-xl bg-[rgba(237,238,239,0.04)] border border-[rgba(237,238,239,0.15)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center space-x-3.5">
+                    <div
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${
+                        isLight
+                          ? 'bg-amber-100 text-amber-700 border-amber-300'
+                          : 'bg-[#00ffaa]/10 text-[#00ffaa] border-[#00ffaa]/30'
+                      }`}
+                    >
+                      {isLight ? <Sun className="w-6 h-6 animate-spin-slow" /> : <Moon className="w-6 h-6" />}
+                    </div>
+                    <div>
+                      <h3 className="font-syne text-base font-bold text-[#edeeef]">
+                        {isLight ? 'High-Contrast Outdoor Daylight Theme' : 'Obsidian Night Flyway Theme'}
+                      </h3>
+                      <p className="text-xs text-[#edeeef]/70 mt-0.5">
+                        {isLight
+                          ? 'Currently active. Clean bright canvas with 21:1 high contrast typography designed for outdoor sun glare.'
+                          : 'Currently active. Deep dark canvas with luminous accents for night tracking and battery preservation.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    id="settings-theme-quick-switch-btn"
+                    onClick={toggleTheme}
+                    className={`px-5 py-3 rounded-lg font-mono-code text-xs uppercase tracking-wider font-bold transition-all cursor-pointer shrink-0 shadow-md flex items-center space-x-2 select-none ${
+                      isLight
+                        ? 'bg-[#0b0c0d] text-[#edeeef] border border-[rgba(237,238,239,0.2)] hover:bg-[#15171a]'
+                        : 'bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-amber-400/20'
+                    }`}
+                  >
+                    {isLight ? (
+                      <>
+                        <Moon className="w-4 h-4 text-cyan-400" />
+                        <span>Switch to Dark Theme</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sun className="w-4 h-4 text-amber-900" />
+                        <span>Switch to Light Theme</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Theme Selection Cards: Side by Side */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  
+                  {/* Card 1: Obsidian Dark Mode */}
+                  <div
+                    onClick={() => setTheme('dark')}
+                    className={`relative p-5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                      !isLight
+                        ? 'bg-[rgba(0,255,170,0.04)] border-[#00ffaa] shadow-lg shadow-[#00ffaa]/10 ring-1 ring-[#00ffaa]/50'
+                        : 'bg-[rgba(237,238,239,0.02)] border-[rgba(237,238,239,0.1)] hover:border-[rgba(237,238,239,0.3)]'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-2">
+                          <Moon className="w-4 h-4 text-cyan-400" />
+                          <span className="font-syne font-bold text-base text-[#edeeef]">Obsidian Dark Mode</span>
+                        </div>
+                        {!isLight ? (
+                          <span className="flex items-center space-x-1 text-[11px] font-mono-code font-bold text-[#00ffaa] bg-[#00ffaa]/15 px-2 py-0.5 rounded">
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Active</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono-code text-[#edeeef]/40 uppercase">Click to Select</span>
+                        )}
+                      </div>
+
+                      {/* Visual Mockup Box */}
+                      <div className="w-full h-24 rounded-lg bg-[#0b0c0d] border border-[rgba(237,238,239,0.15)] p-3 mb-3 flex flex-col justify-between overflow-hidden shadow-inner">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-1.5">
+                            <div className="w-2 h-2 rounded-full bg-[#00ffaa]" />
+                            <div className="w-16 h-2 rounded bg-[rgba(237,238,239,0.2)]" />
+                          </div>
+                          <div className="w-8 h-2 rounded bg-amber-400/40" />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="w-3/4 h-2.5 rounded bg-[rgba(237,238,239,0.4)]" />
+                          <div className="w-1/2 h-2 rounded bg-[rgba(237,238,239,0.15)]" />
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <div className="w-4 h-4 rounded-full bg-[#00ffaa]/20 border border-[#00ffaa]" />
+                          <div className="w-12 h-1.5 rounded bg-[#00ffaa]/50" />
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-[#edeeef]/70 leading-relaxed mb-3">
+                        Designed for twilight, dawn, low-light bird hides, and night radar tracking. Prevents eye strain and preserves night vision while saving mobile OLED battery.
+                      </p>
+
+                      <ul className="space-y-1.5 text-xs font-mono-code text-[#edeeef]/80">
+                        <li className="flex items-center space-x-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#00ffaa]" />
+                          <span>OLED deep obsidian black background</span>
+                        </li>
+                        <li className="flex items-center space-x-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#00ffaa]" />
+                          <span>Neon emerald and amber flyway glow</span>
+                        </li>
+                        <li className="flex items-center space-x-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#00ffaa]" />
+                          <span>Ideal for evening & night surveys</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="pt-4 mt-4 border-t border-[rgba(237,238,239,0.1)]">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTheme('dark');
+                        }}
+                        className={`w-full py-2 px-3 rounded text-xs font-mono-code uppercase font-semibold transition-colors ${
+                          !isLight
+                            ? 'bg-[#00ffaa]/15 text-[#00ffaa] border border-[#00ffaa]/30 cursor-default'
+                            : 'bg-[rgba(237,238,239,0.06)] text-[#edeeef] hover:bg-[rgba(237,238,239,0.12)] cursor-pointer'
+                        }`}
+                      >
+                        {!isLight ? '✓ Currently Applied' : 'Apply Dark Theme'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Card 2: High-Contrast Light Theme */}
+                  <div
+                    onClick={() => setTheme('light')}
+                    className={`relative p-5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                      isLight
+                        ? 'bg-amber-500/5 border-amber-400 shadow-lg shadow-amber-500/10 ring-1 ring-amber-400/50'
+                        : 'bg-[rgba(237,238,239,0.02)] border-[rgba(237,238,239,0.1)] hover:border-[rgba(237,238,239,0.3)]'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-2">
+                          <Sun className="w-4 h-4 text-amber-500" />
+                          <span className="font-syne font-bold text-base text-[#edeeef]">High-Contrast Light Theme</span>
+                        </div>
+                        {isLight ? (
+                          <span className="flex items-center space-x-1 text-[11px] font-mono-code font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Active</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono-code text-[#edeeef]/40 uppercase">Click to Select</span>
+                        )}
+                      </div>
+
+                      {/* Visual Mockup Box */}
+                      <div className="w-full h-24 rounded-lg bg-[#ffffff] border border-slate-300 p-3 mb-3 flex flex-col justify-between overflow-hidden shadow-inner text-slate-900">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-1.5">
+                            <div className="w-2 h-2 rounded-full bg-emerald-600" />
+                            <div className="w-16 h-2 rounded bg-slate-200" />
+                          </div>
+                          <div className="w-8 h-2 rounded bg-amber-500/40" />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="w-3/4 h-2.5 rounded bg-slate-900" />
+                          <div className="w-1/2 h-2 rounded bg-slate-600" />
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <div className="w-4 h-4 rounded-full bg-emerald-100 border border-emerald-600" />
+                          <div className="w-12 h-1.5 rounded bg-emerald-600" />
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-[#edeeef]/70 leading-relaxed mb-3">
+                        Engineered for outdoor birding under direct sun, open wetlands, and high-glare coastlines. Features deep charcoal typography on crisp daylight canvas for instant readability.
+                      </p>
+
+                      <ul className="space-y-1.5 text-xs font-mono-code text-[#edeeef]/80">
+                        <li className="flex items-center space-x-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          <span>21:1 high contrast ratio for sunlight</span>
+                        </li>
+                        <li className="flex items-center space-x-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          <span>Anti-glare for polarized sunglasses</span>
+                        </li>
+                        <li className="flex items-center space-x-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          <span>Carto Voyager daylight map basemap</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="pt-4 mt-4 border-t border-[rgba(237,238,239,0.1)]">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTheme('light');
+                        }}
+                        className={`w-full py-2 px-3 rounded text-xs font-mono-code uppercase font-semibold transition-colors ${
+                          isLight
+                            ? 'bg-amber-100 text-amber-900 border border-amber-400 font-bold cursor-default'
+                            : 'bg-[rgba(237,238,239,0.06)] text-[#edeeef] hover:bg-[rgba(237,238,239,0.12)] cursor-pointer'
+                        }`}
+                      >
+                        {isLight ? '✓ Currently Applied' : 'Apply High-Contrast Light Theme'}
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Live Outdoor Sighting Preview Component */}
+                <div className="p-5 rounded-xl border border-[rgba(237,238,239,0.1)] bg-[rgba(237,238,239,0.03)] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono-code text-[11px] text-[#edeeef]/60 uppercase tracking-wider flex items-center gap-1.5">
+                      <Eye className="w-3.5 h-3.5 text-[#00ffaa]" />
+                      <span>Live Field Visibility Preview (Current Theme: {isLight ? 'Light Field' : 'Obsidian Dark'})</span>
+                    </span>
+                    <span className="text-[10px] font-mono-code text-[#edeeef]/40">Simulated Field Observation</span>
+                  </div>
+
+                  <div className={`p-4 rounded-lg border transition-all ${
+                    isLight 
+                      ? 'bg-white border-slate-300 text-slate-900 shadow-sm' 
+                      : 'bg-[#0b0c0d] border-[rgba(237,238,239,0.15)] text-[#edeeef]'
+                  }`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono-code font-bold uppercase ${
+                          isLight 
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                            : 'bg-[#00ffaa]/15 text-[#00ffaa] border border-[#00ffaa]/30'
+                        }`}>
+                          Verified Sighting
+                        </span>
+                        <span className={`text-xs font-mono-code ${isLight ? 'text-slate-500' : 'text-[#edeeef]/50'}`}>
+                          #BMA-2026-8941
+                        </span>
+                      </div>
+                      <span className={`text-xs font-mono-code ${isLight ? 'text-slate-600 font-semibold' : 'text-amber-400'}`}>
+                        Hawk Ridge Sanctuary (Lat 46.8485°, Lng -92.0362°)
+                      </span>
+                    </div>
+
+                    <h4 className={`font-syne text-lg font-extrabold ${isLight ? 'text-slate-950' : 'text-white'}`}>
+                      Peregrine Falcon <span className="text-sm font-normal italic opacity-80">(Falco peregrinus)</span>
+                    </h4>
+                    <p className={`text-xs mt-1 ${isLight ? 'text-slate-600' : 'text-[#edeeef]/70'}`}>
+                      Observed adult hunting over coastal thermals. Wind speed 18 km/h NW, clear skies. High-contrast display allows instant readability under direct midday sun without eye squinting.
+                    </p>
+
+                    <div className="mt-3 pt-3 border-t border-[rgba(237,238,239,0.1)] flex flex-wrap gap-4 text-[11px] font-mono-code">
+                      <span>Count: <strong>1 Adult</strong></span>
+                      <span>Altitude: <strong>1,240m</strong></span>
+                      <span>Flyway: <strong className={isLight ? 'text-emerald-700' : 'text-[#00ffaa]'}>Mississippi Flyway</strong></span>
+                      <span>Outdoor Contrast: <strong className={isLight ? 'text-emerald-700' : 'text-amber-400'}>{isLight ? '21:1 (AAA Max)' : 'Standard Dark'}</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Field Tips for Outdoor Observers */}
+                <div className="p-4 rounded-xl border border-[rgba(237,238,239,0.1)] bg-[rgba(237,238,239,0.02)] space-y-2">
+                  <h4 className="font-mono-code text-xs uppercase tracking-wider text-[#edeeef] font-bold flex items-center space-x-2">
+                    <Info className="w-4 h-4 text-[#00ffaa]" />
+                    <span>Field Birder Display Recommendations</span>
+                  </h4>
+                  <p className="text-xs text-[#edeeef]/70 leading-relaxed">
+                    • <strong>Midday Sunlight & Water Glare:</strong> Switch to the <em>High-Contrast Light Theme</em> when conducting surveys between 10:00 AM and 4:00 PM or when operating near open water and mudflats.
+                  </p>
+                  <p className="text-xs text-[#edeeef]/70 leading-relaxed">
+                    • <strong>Binoculars & Spotting Scopes:</strong> When alternating between optics and your mobile screen, high-contrast light mode prevents pupil dilation delay, making bird logging much faster and easier.
+                  </p>
+                  <p className="text-xs text-[#edeeef]/70 leading-relaxed">
+                    • <strong>Night & Roosting Surveys:</strong> Switch back to <em>Obsidian Dark Mode</em> for owl prowls, dusk roost counts, or nocturnal acoustic migration tracking to preserve your natural night vision.
+                  </p>
+                </div>
 
               </div>
             )}

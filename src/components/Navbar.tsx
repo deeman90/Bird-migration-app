@@ -1,16 +1,16 @@
 import React from 'react';
 import { User } from '../types';
-import { Navigation, Compass, PlusCircle, Users, Award, ShieldCheck, Lock, Sparkles, User as UserIcon, LogOut, Settings } from 'lucide-react';
+import { Navigation, Compass, PlusCircle, Users, Award, Lock, Sparkles, User as UserIcon, LogOut, Settings, Heart } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BMALogo } from './BMALogo';
 
 interface NavbarProps {
-  activeTab: 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings';
-  setActiveTab: (tab: 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings') => void;
+  activeTab: 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings' | 'donate' | 'diagnostic';
+  setActiveTab: (tab: 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings' | 'donate' | 'diagnostic') => void;
   currentUser: User;
   isLoggedIn?: boolean;
   onLogout?: () => void;
-  onToggleUserTier: () => void;
+  onToggleUserTier?: () => void;
   onOpenAuthModal: () => void;
   onOpenAiScanner?: () => void;
 }
@@ -122,33 +122,35 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </span>
                 )}
               </Link>
+
+              <Link
+                to="/donate"
+                className={`font-mono-code flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+                  activeTab === 'donate'
+                    ? 'bg-[#00ffaa] text-[#0b0c0d] shadow-sm shadow-[#00ffaa]/20 font-bold'
+                    : 'text-[#edeeef]/60 hover:text-[#00ffaa] hover:bg-[#00ffaa]/10'
+                }`}
+              >
+                <Heart className={`w-3.5 h-3.5 ${activeTab === 'donate' ? 'fill-[#0b0c0d] text-[#0b0c0d]' : 'text-rose-400'}`} />
+                <span>Donate</span>
+              </Link>
             </nav>
 
             {/* Right Action Bar */}
             <div className="flex items-center space-x-1.5 sm:space-x-2.5">
-              {/* Quick Tier Switcher */}
-              <button
-                onClick={onToggleUserTier}
-                title="Click to toggle between Free Observer and Paid VIP Birder status"
-                className={`font-mono-code flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-2.5 py-1.5 rounded text-[10px] sm:text-[11px] font-medium border transition-all cursor-pointer min-h-[36px] ${
-                  currentUser.tier === 'paid'
-                    ? 'bg-amber-400/10 border-amber-400/40 text-amber-300 hover:bg-amber-400/20'
-                    : 'bg-[rgba(237,238,239,0.06)] border-[rgba(237,238,239,0.15)] text-[#edeeef]/80 hover:border-[#00ffaa]/50'
+              {/* Conservation Donation Quick Button */}
+              <Link
+                to="/donate"
+                title="Donate to Avian Conservation & Flyway Research"
+                className={`flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-mono-code font-bold uppercase tracking-wider transition-all cursor-pointer min-h-[36px] border ${
+                  activeTab === 'donate'
+                    ? 'bg-[#00ffaa] text-[#0b0c0d] border-[#00ffaa] shadow-sm shadow-[#00ffaa]/20'
+                    : 'bg-[#00ffaa]/10 border-[#00ffaa]/30 text-[#00ffaa] hover:bg-[#00ffaa]/20 hover:border-[#00ffaa]/50'
                 }`}
               >
-                {currentUser.tier === 'paid' ? (
-                  <>
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="font-bold">PRO</span>
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
-                    <span className="hidden sm:inline">Free</span>
-                    <span className="text-[10px] text-[#00ffaa] font-bold">Upgrade</span>
-                  </>
-                )}
-              </button>
+                <Heart className={`w-3.5 h-3.5 ${activeTab === 'donate' ? 'fill-[#0b0c0d]' : 'fill-[#00ffaa]'}`} />
+                <span>Donate</span>
+              </Link>
 
               {/* User Account / Settings Button - Declarative Link */}
               {isLoggedIn ? (

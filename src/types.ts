@@ -233,3 +233,26 @@ export interface RewardMilestone {
   unlocked: boolean;
   perk: string;
 }
+
+export type DonationCause = 
+  | 'platform_infrastructure'
+  | 'telemetry_tags'
+  | 'habitat_wetlands'
+  | 'youth_education'
+  | 'general_conservation';
+
+export interface DonationRecord {
+  id: string;
+  donorName: string;
+  donorEmail: string;
+  amount: number;
+  currency: string;
+  cause: DonationCause;
+  frequency: 'one_time' | 'monthly';
+  message?: string;
+  isAnonymous: boolean;
+  date: string;
+  provider: 'paystack' | 'card' | 'bank_transfer' | 'flutterwave' | 'demo';
+  status: 'completed' | 'pending';
+  receiptNumber: string;
+}

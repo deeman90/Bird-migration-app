@@ -1,6 +1,6 @@
 {
   "name": "BMA (Bird Migration App)",
-  "description": "Global bird migration tracking app with real-time flyway maps, sighting logger with coordinates and photo uploads, community observation feed, regional leaderboards with top contributor rewards, and exclusive paid birding hotspots.",
+  "description": "Global bird migration tracking app with real-time flyway maps, sighting logger with coordinates and photo uploads, community observation feed, regional leaderboards, exclusive paid birding hotspots, and avian conservation donation portal.",
   "requestFramePermissions": ["geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

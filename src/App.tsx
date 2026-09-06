@@ -20,6 +20,8 @@ import { VIPHotspots } from './components/VIPHotspots';
 import { AuthModal } from './components/AuthModal';
 import { AuthPage } from './components/AuthPage';
 import { SettingsPage } from './components/SettingsPage';
+import { DonationPage } from './components/DonationPage';
+import { DiagnosticTestPage } from './components/DiagnosticTestPage';
 import { AIBirdIdentifierModal } from './components/AIBirdIdentifierModal';
 import { AccountRestrictionModal } from './components/AccountRestrictionModal';
 import { PaymentModal } from './components/PaymentModal.js';
@@ -35,24 +37,38 @@ import {
 import { fetchUserProfile, saveUserProfile } from './services/userService.js';
 import { CheckCircle2, Sparkles, AlertCircle, Compass, Lock } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTheme } from './context/ThemeContext';
+
+export type AppTab = 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings' | 'donate' | 'diagnostic';
 
 export default function App() {
+  const { theme, isLight } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
 
   // Tab mapped dynamically from current router URL path
-  const getTabFromPath = (path: string): 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings' => {
+  const getTabFromPath = (path: string): AppTab => {
     if (path.startsWith('/log')) return 'log';
     if (path.startsWith('/feed')) return 'feed';
     if (path.startsWith('/leaderboard') || path.startsWith('/ranks')) return 'leaderboard';
     if (path.startsWith('/hotspots')) return 'hotspots';
     if (path.startsWith('/auth') || path.startsWith('/login') || path.startsWith('/signup')) return 'auth';
     if (path.startsWith('/settings') || path.startsWith('/profile')) return 'settings';
+    if (path.startsWith('/donate')) return 'donate';
+    if (
+      path.startsWith('/diagnostic') ||
+      path.startsWith('/diagnostics') ||
+      path.startsWith('/_diagnostic') ||
+      path.startsWith('/secret-diagnostic') ||
+      path.startsWith('/debug/supabase')
+    ) {
+      return 'diagnostic';
+    }
     return 'map';
   };
 
   const activeTab = getTabFromPath(location.pathname);
-  const setActiveTab = (tab: 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings') => {
+  const setActiveTab = (tab: AppTab) => {
     const targetPath = tab === 'map' ? '/' : `/${tab}`;
     if (location.pathname !== targetPath) {
       navigate(targetPath);
@@ -275,12 +291,12 @@ export default function App() {
     });
   };
 
-  // Sync user sightings count from Supabase database
+  // Sync user sightings count from Supabase database (only when session ID or sightings length changes)
   useEffect(() => {
+    let isCancelled = false;
     async function syncSightingsCount() {
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        const authUserId = authData?.user?.id;
+        const authUserId = session?.user?.id;
 
         if (authUserId) {
           const { count, error } = await supabase
@@ -288,7 +304,7 @@ export default function App() {
             .select('*', { count: 'exact', head: true })
             .eq('user_id', authUserId);
 
-          if (!error && count !== null) {
+          if (!isCancelled && !error && count !== null) {
             setCurrentUser((prev) => (prev.sightingsCount === count ? prev : { ...prev, sightingsCount: count }));
             return;
           }
@@ -299,14 +315,19 @@ export default function App() {
         const userSightings = sightings.filter(
           (s) => s.userId === activeUserId || Boolean(s.userName && currentUser?.name && s.userName.toLowerCase() === currentUser.name.toLowerCase())
         );
-        setCurrentUser((prev) => (prev.sightingsCount === userSightings.length ? prev : { ...prev, sightingsCount: userSightings.length }));
+        if (!isCancelled) {
+          setCurrentUser((prev) => (prev.sightingsCount === userSightings.length ? prev : { ...prev, sightingsCount: userSightings.length }));
+        }
       } catch (err) {
         console.warn('Sync sightings count notice:', err);
       }
     }
 
     syncSightingsCount();
-  }, [session, sightings]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [session?.user?.id, sightings.length]);
 
   // Load sightings from Supabase
   useEffect(() => {
@@ -531,7 +552,13 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
+    <div
+      className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
+        isLight
+          ? 'bg-slate-50 text-slate-900 selection:bg-emerald-600 selection:text-white'
+          : 'bg-slate-950 text-slate-100 selection:bg-emerald-500 selection:text-slate-950'
+      }`}
+    >
       
       {/* Toast Notification Banner */}
       {toastMessage && (
@@ -676,6 +703,20 @@ export default function App() {
             }}
             onToggleUserTier={handleToggleUserTier}
             onLogout={handleLogout}
+          />
+        )}
+
+        {activeTab === 'donate' && (
+          <DonationPage
+            currentUser={currentUser}
+            onGoToTab={(tab) => setActiveTab(tab)}
+            showToast={showToast}
+          />
+        )}
+
+        {activeTab === 'diagnostic' && (
+          <DiagnosticTestPage
+            onBack={() => setActiveTab('map')}
           />
         )}
       </main>

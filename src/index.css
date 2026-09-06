@@ -46,54 +46,174 @@ html, body {
   background-color: #0b0c0d;
 }
 
+.leaflet-marker-pane,
+.leaflet-tile-pane {
+  will-change: transform;
+}
+
 .leaflet-control-container .leaflet-routing-container-hide {
   display: none;
 }
 
-/* Custom pulsing map marker for sightings */
-@keyframes marker-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(0, 255, 170, 0.7);
-  }
-  70% {
-    box-shadow: 0 0 0 12px rgba(0, 255, 170, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(0, 255, 170, 0);
-  }
-}
-
+/* Hardware-accelerated map markers without continuous 60fps repaint loops */
 .pulsing-sighting-marker {
-  animation: marker-pulse 2s infinite;
+  box-shadow: 0 0 8px rgba(0, 255, 170, 0.6);
   border-radius: 50%;
+  will-change: transform;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
 }
 
-@keyframes hotspot-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.8);
-  }
-  70% {
-    box-shadow: 0 0 0 16px rgba(245, 158, 11, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
-  }
+.pulsing-sighting-marker:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 14px rgba(0, 255, 170, 0.9);
 }
 
 .pulsing-hotspot-marker {
-  animation: hotspot-pulse 1.8s infinite;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.7);
   border-radius: 50%;
+  will-change: transform;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
 }
 
-/* Animated dash for migration flyways */
-@keyframes dash-flow {
-  to {
-    stroke-dashoffset: -40;
-  }
+.pulsing-hotspot-marker:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.95);
 }
 
+/* Clean dashed flyway path without continuous SVG stroke repaint overhead */
 .animated-flyway-path {
-  stroke-dasharray: 8, 8;
-  animation: dash-flow 2s linear infinite;
+  stroke-dasharray: 6, 6;
+}
+
+/* ========================================================================== */
+/* HIGH-CONTRAST LIGHT THEME (Outdoor Visibility / Field Mode)                 */
+/* Optimized for sunlight, bright glare, outdoor binoculars and spotting      */
+/* ========================================================================== */
+
+html.theme-light,
+body.theme-light {
+  background-color: #f8fafc !important;
+  color: #090d16 !important;
+}
+
+.theme-light ::selection {
+  background-color: #059669 !important;
+  color: #ffffff !important;
+}
+
+/* Base Canvas & Card Overrides */
+.theme-light .bg-\[\#0b0c0d\],
+.theme-light .bg-slate-950,
+.theme-light .bg-\[\#0f1115\] {
+  background-color: #f8fafc !important;
+}
+
+.theme-light .bg-\[\#111315\],
+.theme-light .bg-slate-900 {
+  background-color: #ffffff !important;
+}
+
+.theme-light .bg-\[rgba\(237\,238\,239\,0\.02\)\],
+.theme-light .bg-\[rgba\(237\,238\,239\,0\.03\)\],
+.theme-light .bg-\[rgba\(237\,238\,239\,0\.04\)\],
+.theme-light .bg-\[rgba\(237\,238\,239\,0\.05\)\],
+.theme-light .bg-\[rgba\(237\,238\,239\,0\.06\)\],
+.theme-light .bg-\[rgba\(237\,238\,239\,0\.07\)\],
+.theme-light .bg-\[rgba\(237\,238\,239\,0\.08\)\] {
+  background-color: #f1f5f9 !important;
+}
+
+/* High-Contrast Borders */
+.theme-light .border-\[rgba\(237\,238\,239\,0\.1\)\],
+.theme-light .border-\[rgba\(237\,238\,239\,0\.08\)\],
+.theme-light .border-\[rgba\(237\,238\,239\,0\.07\)\],
+.theme-light .border-\[rgba\(237\,238\,239\,0\.05\)\],
+.theme-light .border-\[rgba\(237\,238\,239\,0\.15\)\],
+.theme-light .border-\[rgba\(237\,238\,239\,0\.2\)\],
+.theme-light .border-slate-800,
+.theme-light .border-slate-700 {
+  border-color: #cbd5e1 !important;
+}
+
+/* High-Contrast Text */
+.theme-light .text-\[\#edeeef\],
+.theme-light .text-slate-100,
+.theme-light .text-slate-200,
+.theme-light .text-white {
+  color: #090d16 !important;
+}
+
+.theme-light .text-\[\#edeeef\]\/70,
+.theme-light .text-\[\#edeeef\]\/80,
+.theme-light .text-\[\#edeeef\]\/90,
+.theme-light .text-slate-300 {
+  color: #1e293b !important;
+}
+
+.theme-light .text-\[\#edeeef\]\/40,
+.theme-light .text-\[\#edeeef\]\/50,
+.theme-light .text-\[\#edeeef\]\/60,
+.theme-light .text-slate-400,
+.theme-light .text-slate-500 {
+  color: #334155 !important;
+}
+
+/* Header & Navbars in Light Theme */
+.theme-light header {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-bottom-color: #cbd5e1 !important;
+  color: #090d16 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.07), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+}
+
+/* High-Contrast Inputs, Dropdowns & Textareas */
+.theme-light input,
+.theme-light select,
+.theme-light textarea {
+  background-color: #ffffff !important;
+  color: #090d16 !important;
+  border-color: #94a3b8 !important;
+}
+
+.theme-light input::placeholder,
+.theme-light textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Accent Buttons & Pills */
+.theme-light .bg-\[\#00ffaa\] {
+  background-color: #059669 !important;
+  color: #ffffff !important;
+}
+
+.theme-light .text-\[\#00ffaa\] {
+  color: #047857 !important;
+}
+
+.theme-light .border-\[\#00ffaa\] {
+  border-color: #059669 !important;
+}
+
+.theme-light .bg-\[\#00ffaa\]\/10,
+.theme-light .bg-\[\#00ffaa\]\/20 {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  color: #065f46 !important;
+}
+
+/* Leaflet Container in Light Mode */
+.theme-light .leaflet-container {
+  background-color: #e2e8f0 !important;
+}
+
+.theme-light .leaflet-popup-content-wrapper {
+  background-color: #ffffff !important;
+  color: #090d16 !important;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.theme-light .leaflet-popup-tip {
+  background-color: #ffffff !important;
 }
 

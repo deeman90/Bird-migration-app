@@ -1,7 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import L from 'leaflet';
 import { BirdSpecies, Hotspot, MigrationRoute, Sighting, User } from '../types';
 import { Layers, Play, Pause, Filter, ShieldAlert, Sparkles, MapPin, Eye, Lock, RefreshCw, Compass, AlertCircle } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 interface InteractiveMapProps {
   sightings: Sighting[];
@@ -30,6 +33,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   onPickCoordinates,
   selectedCoordinates,
 }) => {
+  const { isLight } = useTheme();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
@@ -47,18 +51,20 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [isPlayingTimeAnimation, setIsPlayingTimeAnimation] = useState<boolean>(false);
   const [mapTileStyle, setMapTileStyle] = useState<'dark' | 'satellite' | 'topo'>('dark');
 
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const months = MONTHS;
 
-  // Available unique regions
-  const availableRegions = Array.from(
-    new Set(
-      sightings
-        .map((s) => s.region || s.locationName.split(',').pop()?.trim())
-        .filter(Boolean) as string[]
-    )
-  ).sort();
+  // Available unique regions (memoized to avoid re-calculating on every render)
+  const availableRegions = useMemo(() => {
+    return Array.from(
+      new Set(
+        sightings
+          .map((s) => s.region || s.locationName.split(',').pop()?.trim())
+          .filter(Boolean) as string[]
+      )
+    ).sort();
+  }, [sightings]);
 
-  // Initialize Map
+  // Initialize Map with hardware-accelerated canvas renderer
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
@@ -69,6 +75,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       minZoom: 2,
       maxZoom: 18,
       zoomControl: false,
+      preferCanvas: true, // Hardware-accelerated canvas for vector paths & polylines
     });
 
     L.control.zoom({ position: 'topright' }).addTo(map);
@@ -86,21 +93,27 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     mapInstanceRef.current = map;
 
-    // Resize observer with safety guard
+    // Debounced ResizeObserver to prevent layout thrashing and continuous invalidateSize calls
+    let resizeTimer: any = null;
     const resizeObserver = new ResizeObserver(() => {
-      try {
-        if (mapInstanceRef.current) {
-          map.invalidateSize();
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        try {
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.invalidateSize({ debounceMoveend: true });
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
-      }
+      }, 150);
     });
+
     if (mapContainerRef.current) {
       resizeObserver.observe(mapContainerRef.current);
     }
 
     return () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
       try {
         map.remove();
@@ -126,7 +139,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         }
       });
 
-      let newTileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+      let newTileUrl = isLight
+        ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
       let attribution = '&copy; CARTO & OpenStreetMap';
 
       if (mapTileStyle === 'satellite') {
@@ -144,7 +159,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     } catch (err) {
       console.warn('Map tile layer update notice:', err);
     }
-  }, [mapTileStyle]);
+  }, [mapTileStyle, isLight]);
 
   // Click handler for picker mode
   useEffect(() => {
@@ -239,18 +254,18 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
           routesGroup.addLayer(polyline);
 
-          // Draw Stopover Nodes
+          // Draw Stopover Nodes using fast hardware-accelerated circleMarkers
           (route.pathPoints || []).forEach((pt) => {
             if (isNaN(Number(pt.lat)) || isNaN(Number(pt.lng))) return;
-            const nodeIcon = L.divIcon({
-              className: 'route-node-icon',
-              html: `<div class="w-3.5 h-3.5 rounded-full border-2 border-white" style="background-color: ${route.color}; shadow: 0 0 8px ${route.color}"></div>`,
-              iconSize: [14, 14],
-              iconAnchor: [7, 7],
+            const nodeMarker = L.circleMarker([pt.lat, pt.lng], {
+              radius: 4,
+              fillColor: route.color,
+              color: '#ffffff',
+              weight: 1.5,
+              opacity: 1,
+              fillOpacity: 0.9,
             });
-
-            const nodeMarker = L.marker([pt.lat, pt.lng], { icon: nodeIcon });
-            nodeMarker.bindTooltip(`${pt.name} (${pt.season || 'Flyway Waypoint'})`, { direction: 'top', offset: [0, -6] });
+            nodeMarker.bindTooltip(`${pt.name} (${pt.season || 'Flyway Waypoint'})`, { direction: 'top', offset: [0, -4] });
             routesGroup.addLayer(nodeMarker);
           });
         });
@@ -412,7 +427,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     showHotspots,
     selectedSpeciesFilter,
     selectedRegionFilter,
-    timePlaybackMonthIndex,
     migrationRoutes,
     sightings,
     hotspots,
