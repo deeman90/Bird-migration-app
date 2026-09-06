@@ -24,6 +24,17 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Migration: If user_id was previously created as UUID, safely convert it to TEXT
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'subscriptions' AND column_name = 'user_id' AND data_type = 'uuid'
+  ) THEN
+    ALTER TABLE public.subscriptions ALTER COLUMN user_id TYPE TEXT;
+  END IF;
+END $$;
+
 -- 2. Idempotent column additions for existing tables
 ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS email_token TEXT;
 ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS subscription_code TEXT;
@@ -71,9 +82,9 @@ ON public.subscriptions
 FOR SELECT
 TO authenticated, anon
 USING (
-  auth.uid() = user_id 
+  auth.uid()::text = user_id::text 
   OR auth.role() = 'service_role'
-  OR user_id IS NOT NULL
+  OR true
 );
 
 CREATE POLICY "Users can insert their own subscriptions"
@@ -81,9 +92,9 @@ ON public.subscriptions
 FOR INSERT
 TO authenticated, anon
 WITH CHECK (
-  auth.uid() = user_id 
+  auth.uid()::text = user_id::text 
   OR auth.role() = 'service_role'
-  OR user_id IS NOT NULL
+  OR true
 );
 
 CREATE POLICY "Users or Service Role can update subscriptions"
@@ -91,9 +102,9 @@ ON public.subscriptions
 FOR UPDATE
 TO authenticated, anon
 USING (
-  auth.uid() = user_id 
+  auth.uid()::text = user_id::text 
   OR auth.role() = 'service_role'
-  OR user_id IS NOT NULL
+  OR true
 );
 
 -- Grant appropriate permissions

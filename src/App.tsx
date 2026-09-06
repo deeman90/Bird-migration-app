@@ -261,6 +261,7 @@ export default function App() {
 
   // Payment Success Callback (Paystack / Flutterwave)
   const handlePaymentSuccess = (newTier: 'paid', subscription: SubscriptionRecord) => {
+    console.log('[handlePaymentSuccess] Inspecting subscription object before processing:', subscription);
     const updatedUser: User = {
       ...currentUser,
       tier: 'paid',

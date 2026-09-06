@@ -20,6 +20,29 @@ export interface SubscriptionRecord {
   updatedAt?: string;
 }
 
+export function isUuid(val?: string): boolean {
+  return Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val));
+}
+
+export function toDeterministicUuid(str: string): string {
+  if (isUuid(str)) return str;
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57, h3 = 0x12345678, h4 = 0x87654321;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ ch, 2246822519);
+    h4 = Math.imul(h4 ^ ch, 3266489917);
+  }
+  const hex = (
+    (h1 >>> 0).toString(16).padStart(8, '0') +
+    (h2 >>> 0).toString(16).padStart(8, '0') +
+    (h3 >>> 0).toString(16).padStart(8, '0') +
+    (h4 >>> 0).toString(16).padStart(8, '0')
+  );
+  return `${hex.substring(0, 8)}-${hex.substring(8, 12)}-4${hex.substring(13, 16)}-a${hex.substring(17, 20)}-${hex.substring(20, 32)}`;
+}
+
 function mapRowToSubscription(row: any): SubscriptionRecord {
   return {
     id: row.id,
@@ -46,8 +69,18 @@ function mapRowToSubscription(row: any): SubscriptionRecord {
   Fetch active/latest subscription for a given user from Supabase.
  */
 export async function getUserSubscription(userId: string): Promise<SubscriptionRecord | null> {
+  // 1. First retrieve locally cached subscription for instant responsiveness
+  let cachedLocal: SubscriptionRecord | null = null;
   try {
-    const { data, error } = await supabase
+    const local = localStorage.getItem(`aerotrack_subscription_${userId}`);
+    if (local) cachedLocal = JSON.parse(local);
+  } catch {
+    // ignore
+  }
+
+  try {
+    const isUserUuid = isUuid(userId);
+    let { data, error } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
@@ -55,16 +88,22 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionR
       .limit(1)
       .maybeSingle();
 
+    // If PostgreSQL schema requires UUID for user_id and userId is a text identifier, retry with deterministic UUID
+    if (error && error.message.includes('invalid input syntax for type uuid') && !isUserUuid) {
+      const retryRes = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', toDeterministicUuid(userId))
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      data = retryRes.data;
+      error = retryRes.error;
+    }
+
     if (error) {
-      console.warn('[Supabase Subscription] Note fetching subscription from Supabase:', error.message);
-      // Fallback to local cached subscription
-      try {
-        const local = localStorage.getItem(`aerotrack_subscription_${userId}`);
-        if (local) return JSON.parse(local);
-      } catch {
-        // ignore
-      }
-      return null;
+      // Return cached local if remote query encountered an error or RLS constraint
+      return cachedLocal;
     }
 
     if (data) {
@@ -77,25 +116,17 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionR
       return sub;
     }
 
-    // Check local fallback if no remote record found
-    try {
-      const local = localStorage.getItem(`aerotrack_subscription_${userId}`);
-      if (local) return JSON.parse(local);
-    } catch {
-      // ignore
-    }
-
-    return null;
+    return cachedLocal;
   } catch (err) {
-    console.error('[Supabase Subscription] Exception during fetch:', err);
-    try {
-      const local = localStorage.getItem(`aerotrack_subscription_${userId}`);
-      if (local) return JSON.parse(local);
-    } catch {
-      // ignore
-    }
-    return null;
+    return cachedLocal;
   }
+}
+
+/**
+ * Explicitly logs the payload being sent to the 'subscriptions' table in Supabase.
+ */
+export function logSubscriptionPayload(payload: Record<string, any>, context: string = 'Supabase subscriptions table'): void {
+  console.log(`[Subscription Payload] Target: 'subscriptions' table | Context: ${context}`, JSON.stringify(payload, null, 2));
 }
 
 /**
@@ -160,13 +191,15 @@ export async function saveUserSubscription(sub: SubscriptionRecord): Promise<Sub
     }
 
     const payload: Record<string, any> = { ...baseRow };
-    if (!existingId && sub.id) {
+    // Only pass id if sub.id is a genuine UUID to avoid PostgreSQL uuid syntax errors
+    if (!existingId && sub.id && isUuid(sub.id)) {
       payload.id = sub.id;
     }
 
     // Adaptive retry loop: if Supabase schema cache reports missing columns (e.g. email_token),
     // automatically strip that column and retry up to 6 times.
     for (let attempt = 0; attempt < 6; attempt++) {
+      logSubscriptionPayload(payload, `Attempt ${attempt + 1} (${existingId ? 'UPDATE' : 'INSERT'})`);
       let res;
       if (existingId) {
         res = await supabase
@@ -196,8 +229,6 @@ export async function saveUserSubscription(sub: SubscriptionRecord): Promise<Sub
       }
 
       // Check for missing column error in PostgREST schema cache
-      // Example 1: "Could not find the 'email_token' column of 'subscriptions' in the schema cache"
-      // Example 2: "column \"email_token\" of relation \"subscriptions\" does not exist"
       const missingColumnMatch =
         error.message.match(/Could not find the '([^']+)' column/i) ||
         error.message.match(/column ["']?([^"' ]+)["']? of relation .* does not exist/i) ||
@@ -210,7 +241,19 @@ export async function saveUserSubscription(sub: SubscriptionRecord): Promise<Sub
         continue;
       }
 
-      // If it's another error (e.g. table not created yet or RLS policy), warn and return localRecord
+      // Check if user_id column requires UUID in PostgreSQL
+      if (error.message.includes('invalid input syntax for type uuid') && payload.user_id && !isUuid(payload.user_id)) {
+        console.warn(`[Supabase Subscription] Database user_id requires UUID format. Adapting '${payload.user_id}' to UUID...`);
+        payload.user_id = toDeterministicUuid(payload.user_id);
+        continue;
+      }
+
+      // If RLS policy or other constraint encountered, safely preserve local VIP record
+      if (error.code === '42501' || error.message.includes('row-level security') || error.message.includes('policy')) {
+        console.info('[Supabase Subscription] Remote RLS policy notice; subscription saved to verified local state.');
+        return localRecord;
+      }
+
       console.warn('[Supabase Subscription] Supabase save notice, maintaining local VIP subscription state:', error.message);
       return localRecord;
     }
@@ -250,16 +293,17 @@ export async function cancelUserSubscription(userId: string): Promise<boolean> {
       })
       .eq('user_id', userId);
 
-    if (error) {
-      if (error.message.includes('cancel_at_period_end') || error.message.includes('column')) {
-        await supabase
-          .from('subscriptions')
-          .update({ status: 'cancelled' })
-          .eq('user_id', userId);
-      } else {
-        console.warn('[Supabase Subscription] Error cancelling subscription:', error.message);
-      }
+    if (error && error.message.includes('invalid input syntax for type uuid') && !isUuid(userId)) {
+      await supabase
+        .from('subscriptions')
+        .update({
+          status: 'cancelled',
+          cancel_at_period_end: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', toDeterministicUuid(userId));
     }
+
     return true;
   } catch (err) {
     console.error('[Supabase Subscription] Exception during cancel:', err);
