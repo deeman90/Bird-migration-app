@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserAddress, UserTier } from '../types';
-import { uploadFileToSupabaseStorage, deleteFileFromSupabaseStorage } from '../services/storageService.js';
-import { getUserSubscription, cancelUserSubscription, SubscriptionRecord } from '../services/subscriptionService.js';
-import { saveUserProfile, CREATE_USER_PROFILES_SQL } from '../services/userService.js';
+import { uploadFileToSupabaseStorage, deleteFileFromSupabaseStorage } from '../services/storageService';
+import { getUserSubscription, cancelUserSubscription, SubscriptionRecord } from '../services/subscriptionService';
+import { saveUserProfile, CREATE_USER_PROFILES_SQL } from '../services/userService';
 import {
   User as UserIcon,
   Camera,

@@ -22,7 +22,10 @@ import {
   PlusCircle,
   Clock,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  CloudOff,
+  Cloud,
+  AlertTriangle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -516,10 +519,39 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
 
                       {/* Cloud Sync Status */}
                       <td className="p-3 sm:px-4 sm:py-3 text-center whitespace-nowrap">
-                        <span className="inline-flex items-center space-x-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase" title="Live Synced in Supabase sighting_logs / sightings view">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-                          <span>Synced</span>
-                        </span>
+                        {s.syncStatus === 'pending' ? (
+                          <span
+                            className="inline-flex items-center space-x-1 bg-amber-500/15 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded text-[10px] font-bold uppercase"
+                            title="Saved in local offline sync queue. Will automatically push to Supabase once connectivity is restored."
+                          >
+                            <CloudOff className="w-3 h-3 text-amber-400" />
+                            <span>Queued</span>
+                          </span>
+                        ) : s.syncStatus === 'syncing' ? (
+                          <span
+                            className="inline-flex items-center space-x-1 bg-sky-500/15 text-sky-300 border border-sky-500/40 px-2 py-0.5 rounded text-[10px] font-bold uppercase"
+                            title="Pushing observation to Supabase..."
+                          >
+                            <RefreshCw className="w-3 h-3 text-sky-400 animate-spin" />
+                            <span>Syncing</span>
+                          </span>
+                        ) : s.syncStatus === 'failed' ? (
+                          <span
+                            className="inline-flex items-center space-x-1 bg-rose-500/15 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded text-[10px] font-bold uppercase"
+                            title={s.syncError || 'Upload failed, queued for retry'}
+                          >
+                            <AlertTriangle className="w-3 h-3 text-rose-400" />
+                            <span>Retry</span>
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-flex items-center space-x-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase"
+                            title="Live Synced in Supabase database"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                            <span>Synced</span>
+                          </span>
+                        )}
                       </td>
 
                       {/* Actions */}

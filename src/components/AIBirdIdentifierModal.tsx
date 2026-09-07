@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BirdSpecies } from '../types';
-import { uploadFileToSupabaseStorage } from '../services/storageService.js';
+import { uploadFileToSupabaseStorage } from '../services/storageService';
 import { optimizeImageForApi } from '../utils/imageOptimizer';
 import { safeFetchJson, extractErrorMessage } from '../utils/apiClient';
 import { Camera, Sparkles, CheckCircle2, AlertCircle, RefreshCw, ArrowRight, ShieldCheck, Tag, Info, Search } from 'lucide-react';

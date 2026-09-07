@@ -15,8 +15,8 @@ import {
   RefreshCw,
   ExternalLink,
 } from 'lucide-react';
-import { User } from '../types.js';
-import { saveUserSubscription, SubscriptionRecord } from '../services/subscriptionService.js';
+import { User } from '../types';
+import { saveUserSubscription, SubscriptionRecord } from '../services/subscriptionService';
 import { safeFetchJson } from '../utils/apiClient';
 
 interface PaymentModalProps {

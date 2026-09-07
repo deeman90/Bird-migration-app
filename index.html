@@ -1,44 +1,6 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <script>
-      (function() {
-        try {
-          if (typeof window !== 'undefined') {
-            window.addEventListener('unhandledrejection', function(event) {
-              if (event) {
-                event.preventDefault();
-                if (event.reason) {
-                  console.warn('[Handled Promise Rejection]', event.reason);
-                }
-              }
-            });
-
-            window.addEventListener('error', function(event) {
-              if (!event.message || event.message === 'Script error.' || event.message.trim() === '') {
-                event.preventDefault();
-              }
-            });
-
-            if (!window.__fetchPolyfilled && typeof window.fetch === 'function') {
-              window.__fetchPolyfilled = true;
-              var initialFetch = window.fetch;
-              var activeFetch = initialFetch.bind(window);
-              var desc = {
-                get: function() { return activeFetch; },
-                set: function(v) { activeFetch = typeof v === 'function' ? v.bind(window) : v; },
-                configurable: true,
-                enumerable: true
-              };
-              try { Object.defineProperty(window, 'fetch', desc); } catch (e) {}
-              if (typeof Window !== 'undefined' && Window.prototype) {
-                try { Object.defineProperty(Window.prototype, 'fetch', desc); } catch (e) {}
-              }
-            }
-          }
-        } catch (err) {}
-      })();
-    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0b0c0d" />

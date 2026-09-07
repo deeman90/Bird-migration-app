@@ -17,7 +17,9 @@ import {
   Table,
   LayoutGrid,
   RefreshCw,
-  Database
+  Database,
+  CloudOff,
+  Cloud
 } from 'lucide-react';
 import { SightingsTable } from './SightingsTable';
 import { Link } from 'react-router-dom';
@@ -402,12 +404,34 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
                   </div>
                 </div>
 
-                {s.verified && (
-                  <div className="flex items-center space-x-1 bg-[#00ffaa]/10 text-[#00ffaa] border border-[#00ffaa]/30 px-2.5 py-1 rounded text-[10px] font-mono-code uppercase font-semibold">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Verified</span>
-                  </div>
-                )}
+                <div className="flex items-center space-x-2">
+                  {s.syncStatus === 'pending' && (
+                    <div
+                      className="flex items-center space-x-1 bg-amber-500/15 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded text-[10px] font-mono-code uppercase font-semibold"
+                      title="Saved in local offline sync queue. Will automatically push to Supabase once connectivity is restored."
+                    >
+                      <CloudOff className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Offline (Queued)</span>
+                    </div>
+                  )}
+
+                  {s.syncStatus === 'syncing' && (
+                    <div
+                      className="flex items-center space-x-1 bg-sky-500/15 text-sky-300 border border-sky-500/40 px-2 py-0.5 rounded text-[10px] font-mono-code uppercase font-semibold"
+                      title="Pushing to Supabase cloud database..."
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-sky-400 animate-spin" />
+                      <span>Syncing...</span>
+                    </div>
+                  )}
+
+                  {s.verified && (
+                    <div className="flex items-center space-x-1 bg-[#00ffaa]/10 text-[#00ffaa] border border-[#00ffaa]/30 px-2.5 py-1 rounded text-[10px] font-mono-code uppercase font-semibold">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Verified</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Photo & Species Info Grid */}

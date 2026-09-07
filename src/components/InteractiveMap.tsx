@@ -66,17 +66,28 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
   // Initialize Map with hardware-accelerated canvas renderer
   useEffect(() => {
-    if (!mapContainerRef.current || mapInstanceRef.current) return;
+    if (!mapContainerRef.current) return;
+    if (mapInstanceRef.current) return;
 
-    // Default center globally focused
-    const map = L.map(mapContainerRef.current, {
-      center: [25, 0],
-      zoom: 3,
-      minZoom: 2,
-      maxZoom: 18,
-      zoomControl: false,
-      preferCanvas: true, // Hardware-accelerated canvas for vector paths & polylines
-    });
+    // Reset any dangling Leaflet DOM binding to prevent "Map container is already initialized" error
+    if ((mapContainerRef.current as any)._leaflet_id) {
+      delete (mapContainerRef.current as any)._leaflet_id;
+    }
+
+    let map: L.Map;
+    try {
+      map = L.map(mapContainerRef.current, {
+        center: [25, 0],
+        zoom: 3,
+        minZoom: 2,
+        maxZoom: 18,
+        zoomControl: false,
+        preferCanvas: true, // Hardware-accelerated canvas for vector paths & polylines
+      });
+    } catch (err) {
+      console.warn('Leaflet map initialization notice:', err);
+      return;
+    }
 
     L.control.zoom({ position: 'topright' }).addTo(map);
 
@@ -121,6 +132,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         // ignore
       }
       mapInstanceRef.current = null;
+      if (mapContainerRef.current && (mapContainerRef.current as any)._leaflet_id) {
+        delete (mapContainerRef.current as any)._leaflet_id;
+      }
     };
   }, []);
 

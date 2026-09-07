@@ -1,5 +1,5 @@
 import { Sighting } from '../types';
-import { supabase } from '../supabaseClient.js';
+import { supabase } from '../supabaseClient';
 
 /**
  * Computes a SHA-256 hash or canonical fingerprint for an image input

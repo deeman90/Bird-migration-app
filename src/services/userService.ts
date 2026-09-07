@@ -1,6 +1,6 @@
-import { supabase } from '../supabaseClient.js';
-import { User } from '../types.js';
-import { getSignedStorageUrl } from './storageService.js';
+import { supabase } from '../supabaseClient';
+import { User } from '../types';
+import { getSignedStorageUrl } from './storageService';
 
 export function mapRowToUserProfile(row: any): User {
   return {

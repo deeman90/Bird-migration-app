@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient.js';
+import { supabase } from '../supabaseClient';
 
 export const BUCKET_NAME = 'app-files';
 
@@ -88,6 +88,51 @@ export async function uploadFileToSupabaseStorage({
     };
   } catch (err) {
     console.warn('Storage upload catch error:', err);
+    return { filePath: null, signedUrl: null, error: err };
+  }
+}
+
+/**
+ * Uploads a base64 Data URL string to Supabase Storage bucket 'app-files'.
+ */
+export async function uploadBase64ToSupabaseStorage({
+  base64Data,
+  userId,
+  featureName = 'sightings',
+  itemId = 'default',
+}: {
+  base64Data: string;
+  userId?: string;
+  featureName?: string;
+  itemId?: string;
+}): Promise<UploadResult> {
+  try {
+    if (!base64Data || !base64Data.startsWith('data:')) {
+      return { filePath: null, signedUrl: base64Data || null, error: null };
+    }
+    const [header, data] = base64Data.split(',');
+    if (!data) {
+      return { filePath: null, signedUrl: null, error: new Error('Invalid base64 payload') };
+    }
+    const mimeMatch = header.match(/:(.*?);/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const binary = atob(data);
+    const array = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      array[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([array], { type: mimeType });
+    const ext = mimeType.includes('/') ? mimeType.split('/')[1] : 'jpg';
+    const file = new File([blob], `photo_${Date.now()}.${ext}`, { type: mimeType });
+
+    return await uploadFileToSupabaseStorage({
+      file,
+      userId,
+      featureName,
+      itemId,
+    });
+  } catch (err) {
+    console.warn('[Storage] Base64 upload catch notice:', err);
     return { filePath: null, signedUrl: null, error: err };
   }
 }

@@ -122,6 +122,21 @@ export interface Sighting {
   imageHash?: string;
   isRareSpecies?: boolean;
   rareBonusEarned?: number;
+
+  // Offline Sync Queue Metadata
+  syncStatus?: 'synced' | 'pending' | 'syncing' | 'failed';
+  offlineCreatedAt?: string;
+  syncError?: string;
+}
+
+export interface QueuedSighting {
+  queueId: string;
+  sighting: Sighting;
+  createdAt: string;
+  retryCount: number;
+  lastAttemptAt?: string;
+  status: 'pending' | 'syncing' | 'failed';
+  error?: string;
 }
 
 export function isRareOrExtinctSpecies(

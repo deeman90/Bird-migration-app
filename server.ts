@@ -1,10 +1,7 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import app from './api/index';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const PORT = 3000;
 
 async function startServer() {
@@ -28,6 +25,8 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('[Server Error] Failed to boot server:', err);
+});
 
 export default app;

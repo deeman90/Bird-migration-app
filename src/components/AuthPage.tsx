@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserTier } from '../types';
-import { supabase } from '../supabaseClient.js';
-import { fetchUserProfile, saveUserProfile } from '../services/userService.js';
+import { supabase } from '../supabaseClient';
+import { fetchUserProfile, saveUserProfile } from '../services/userService';
 import {
   LogIn,
   UserPlus,

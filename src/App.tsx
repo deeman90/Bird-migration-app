@@ -24,9 +24,9 @@ import { DonationPage } from './components/DonationPage';
 import { DiagnosticTestPage } from './components/DiagnosticTestPage';
 import { AIBirdIdentifierModal } from './components/AIBirdIdentifierModal';
 import { AccountRestrictionModal } from './components/AccountRestrictionModal';
-import { PaymentModal } from './components/PaymentModal.js';
-import { SubscriptionRecord } from './services/subscriptionService.js';
-import { supabase } from './supabaseClient.js';
+import { PaymentModal } from './components/PaymentModal';
+import { SubscriptionRecord } from './services/subscriptionService';
+import { supabase } from './supabaseClient';
 import {
   fetchSightingsFromSupabase,
   createSightingInSupabase,
@@ -34,7 +34,14 @@ import {
   deleteSightingInSupabase,
   fetchUserSightingsCountFromSupabase,
 } from './services/sightingsService';
-import { fetchUserProfile, saveUserProfile } from './services/userService.js';
+import { fetchUserProfile, saveUserProfile } from './services/userService';
+import {
+  enqueueOfflineSighting,
+  getPendingSightingsQueue,
+  isDeviceOnline,
+  syncPendingSightings,
+} from './services/offlineSyncService';
+import { OfflineSyncBanner } from './components/OfflineSyncBanner';
 import { CheckCircle2, Sparkles, AlertCircle, Compass, Lock } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from './context/ThemeContext';
@@ -335,7 +342,19 @@ export default function App() {
       try {
         const { data, error } = await fetchSightingsFromSupabase();
         if (!error && data && data.length > 0) {
-          setSightings(data);
+          // Merge pending offline sightings so they remain visible with their pending status
+          const pendingQueue = getPendingSightingsQueue();
+          const pendingSightings = pendingQueue.map((item) => item.sighting);
+          const merged = [
+            ...pendingSightings,
+            ...data.filter(
+              (d) =>
+                !pendingSightings.some(
+                  (p) => p.id === d.id || (p.imageHash && d.imageHash && p.imageHash === d.imageHash)
+                )
+            ),
+          ];
+          setSightings(merged);
         }
       } catch (err) {
         console.warn('Load sightings notice:', err);
@@ -382,6 +401,81 @@ export default function App() {
     };
   }, []);
 
+  // Automatic offline sync queue processor: runs when online, on network reconnect, or via Service Worker sync
+  useEffect(() => {
+    let isCancelled = false;
+
+    const runAutoSync = async () => {
+      if (!isDeviceOnline()) return;
+      const queue = getPendingSightingsQueue();
+      if (queue.length === 0) return;
+
+      try {
+        const result = await syncPendingSightings({
+          onSightingSynced: (synced) => {
+            if (!isCancelled) {
+              setSightings((prev) =>
+                prev.map((item) =>
+                  item.id === synced.id || (synced.imageHash && item.imageHash === synced.imageHash)
+                    ? synced
+                    : item
+                )
+              );
+            }
+          },
+        });
+
+        if (!isCancelled && result.succeeded > 0) {
+          showToast(
+            `✓ Restored connectivity: Pushed ${result.succeeded} offline ${
+              result.succeeded === 1 ? 'sighting' : 'sightings'
+            } to Supabase!`,
+            'success'
+          );
+        }
+      } catch (syncErr) {
+        console.warn('[AutoSync] Error running pending push:', syncErr);
+      }
+    };
+
+    // Attempt initial sync on load if online
+    if (isDeviceOnline()) {
+      runAutoSync();
+    }
+
+    // Listen to browser network recovery
+    const handleOnline = () => {
+      runAutoSync();
+    };
+    window.addEventListener('online', handleOnline);
+
+    // Heartbeat check every 12 seconds: if device is online and queue has items, auto-sync
+    const heartbeatInterval = setInterval(() => {
+      if (isDeviceOnline() && getPendingSightingsQueue().length > 0) {
+        runAutoSync();
+      }
+    }, 12000);
+
+    // Listen to Service Worker background sync triggers
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'BACKGROUND_SYNC_TRIGGER') {
+        runAutoSync();
+      }
+    };
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    }
+
+    return () => {
+      isCancelled = true;
+      clearInterval(heartbeatInterval);
+      window.removeEventListener('online', handleOnline);
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+      }
+    };
+  }, []);
+
   // Force Refresh Sightings from Supabase Table
   const handleRefreshSightings = async () => {
     setIsRefreshingSightings(true);
@@ -400,7 +494,7 @@ export default function App() {
     }
   };
 
-  // Add Sighting Handler
+  // Add Sighting Handler with Offline Queue & Auto-Sync
   const handleAddSighting = (newSighting: Sighting) => {
     // Ensure owner userId matches current auth user if available
     const sightingWithUser: Sighting = {
@@ -411,21 +505,60 @@ export default function App() {
       userTier: currentUser.tier,
     };
 
-    setSightings((prev) => [sightingWithUser, ...prev]);
+    if (!isDeviceOnline()) {
+      // 1. Device is OFFLINE: Queue observation into local storage
+      const offlineSighting: Sighting = {
+        ...sightingWithUser,
+        syncStatus: 'pending',
+        offlineCreatedAt: new Date().toISOString(),
+      };
 
-    // Save to Supabase (view or sighting_logs table fallback)
-    createSightingInSupabase(sightingWithUser)
-      .then(({ data, error }) => {
-        if (data) {
-          setSightings((prev) => prev.map((item) => (item.id === sightingWithUser.id ? data : item)));
-          showToast('✓ Sighting persisted to Supabase database table!', 'success');
-        } else if (error) {
-          console.warn('Supabase sighting persist warning:', error.message);
-        }
-      })
-      .catch((err) => {
-        console.warn('Supabase sighting persist error:', err);
-      });
+      setSightings((prev) => [offlineSighting, ...prev]);
+      enqueueOfflineSighting(offlineSighting);
+      showToast('📡 Saved offline! Will automatically push to Supabase once connectivity is restored.', 'success');
+    } else {
+      // 2. Device is ONLINE: Optimistically add to state, then push to Supabase
+      setSightings((prev) => [sightingWithUser, ...prev]);
+
+      createSightingInSupabase(sightingWithUser)
+        .then(({ data, error }) => {
+          if (data && !error) {
+            const syncedData: Sighting = { ...data, syncStatus: 'synced' };
+            setSightings((prev) =>
+              prev.map((item) => (item.id === sightingWithUser.id ? syncedData : item))
+            );
+            showToast('✓ Sighting persisted to Supabase database table!', 'success');
+          } else {
+            console.warn('Supabase sighting persist notice, queuing into offline sync queue:', error?.message);
+            // Failed due to network drop or cloud latency: safely queue into offline storage
+            const pendingSighting: Sighting = {
+              ...sightingWithUser,
+              syncStatus: 'pending',
+              offlineCreatedAt: new Date().toISOString(),
+              syncError: error?.message,
+            };
+            enqueueOfflineSighting(pendingSighting);
+            setSightings((prev) =>
+              prev.map((item) => (item.id === sightingWithUser.id ? pendingSighting : item))
+            );
+            showToast('📡 Network notice: Sighting saved to offline sync queue. It will auto-push once connected.', 'success');
+          }
+        })
+        .catch((err) => {
+          console.warn('Supabase sighting persist error, saving to offline sync queue:', err);
+          const pendingSighting: Sighting = {
+            ...sightingWithUser,
+            syncStatus: 'pending',
+            offlineCreatedAt: new Date().toISOString(),
+            syncError: err?.message,
+          };
+          enqueueOfflineSighting(pendingSighting);
+          setSightings((prev) =>
+            prev.map((item) => (item.id === sightingWithUser.id ? pendingSighting : item))
+          );
+          showToast('📡 Network unreachable: Sighting queued for auto-sync once online.', 'success');
+        });
+    }
 
     // Update User Stats, Points & Badges
     const pointsAwarded = newSighting.pointsEarned !== undefined ? newSighting.pointsEarned : 100;
@@ -590,6 +723,20 @@ export default function App() {
         onToggleUserTier={handleToggleUserTier}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onOpenAiScanner={() => setIsAiScannerOpen(true)}
+      />
+
+      {/* Offline Connectivity & Pending Sync Queue Banner */}
+      <OfflineSyncBanner
+        onSightingSynced={(syncedSighting) => {
+          setSightings((prev) =>
+            prev.map((item) =>
+              item.id === syncedSighting.id || (syncedSighting.imageHash && item.imageHash === syncedSighting.imageHash)
+                ? syncedSighting
+                : item
+            )
+          );
+        }}
+        onShowToast={(msg, type) => showToast(msg, type || 'success')}
       />
 
       {/* Primary View Router */}

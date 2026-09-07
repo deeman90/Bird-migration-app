@@ -1,6 +1,6 @@
-import { supabase } from '../supabaseClient.js';
+import { supabase } from '../supabaseClient';
 import { Sighting } from '../types';
-import { uploadFileToSupabaseStorage, getSignedStorageUrl, deleteFileFromSupabaseStorage } from './storageService.js';
+import { uploadFileToSupabaseStorage, getSignedStorageUrl, deleteFileFromSupabaseStorage } from './storageService';
 
 function mapRowToSighting(row: any): Sighting {
   return {

@@ -20,7 +20,24 @@ import {
   Check,
   Server,
   Zap,
+  WifiOff,
+  Wifi,
+  Cloud,
+  CloudOff,
+  Plus,
+  Trash2,
 } from 'lucide-react';
+import {
+  isDeviceOnline,
+  isSimulatedOffline,
+  setSimulatedOffline,
+  getPendingSightingsQueue,
+  enqueueOfflineSighting,
+  clearSyncQueue,
+  syncPendingSightings,
+  subscribeToSyncQueue,
+} from '../services/offlineSyncService';
+import { QueuedSighting, Sighting } from '../types';
 
 interface DiagnosticResult {
   timestamp: string;
@@ -54,7 +71,86 @@ export const DiagnosticTestPage: React.FC<DiagnosticTestPageProps> = ({ onBack }
   const [runCount, setRunCount] = useState<number>(0);
   const [copiedRaw, setCopiedRaw] = useState<boolean>(false);
   const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'data' | 'policy' | 'console'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'data' | 'policy' | 'console' | 'offline'>('overview');
+  const [offlineQueue, setOfflineQueue] = useState<QueuedSighting[]>(getPendingSightingsQueue());
+  const [isSimOffline, setIsSimOffline] = useState<boolean>(isSimulatedOffline());
+  const [syncingOffline, setSyncingOffline] = useState<boolean>(false);
+  const [offlineSyncMessage, setOfflineSyncMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = subscribeToSyncQueue((q) => {
+      setOfflineQueue(q);
+      setIsSimOffline(isSimulatedOffline());
+    });
+    return unsub;
+  }, []);
+
+  const handleToggleSimOffline = () => {
+    const nextVal = !isSimOffline;
+    setSimulatedOffline(nextVal);
+    setIsSimOffline(nextVal);
+    addLiveLog(nextVal ? 'warn' : 'info', `[OfflineSync] Simulated offline mode set to: ${nextVal}`);
+  };
+
+  const handleCreateTestOfflineSighting = () => {
+    const testId = `test-offline-${Date.now()}`;
+    const testSpecies = ['Peregrine Falcon', 'Snowy Owl', 'Ruby-throated Hummingbird', 'Golden Eagle', 'Bald Eagle'][
+      Math.floor(Math.random() * 5)
+    ];
+    const newTestSighting: Sighting = {
+      id: testId,
+      userId: result?.authSession?.userId || 'guest-field-tester',
+      userName: 'Diagnostic Tester',
+      userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+      userTier: 'free',
+      speciesId: 'species-test',
+      speciesName: testSpecies,
+      scientificName: `${testSpecies} orientalis`,
+      locationName: 'Highland Reserve, Test Sector',
+      region: 'Pacific Flyway',
+      latitude: 47.6062,
+      longitude: -122.3321,
+      timestamp: new Date().toISOString(),
+      photoUrl: 'https://images.unsplash.com/photo-1552728089-57bdde30beb3?w=800&auto=format&fit=crop&q=80',
+      flockCount: 1,
+      behavior: 'flying',
+      notes: 'Generated via Diagnostic Offline Queue test tool.',
+      verified: true,
+      likesCount: 0,
+      comments: [],
+      isRareSpecies: true,
+      pointsEarned: 120,
+      syncStatus: 'pending',
+      offlineCreatedAt: new Date().toISOString(),
+    };
+
+    enqueueOfflineSighting(newTestSighting);
+    addLiveLog('info', `[OfflineSync] Queued test sighting "${testSpecies}" (${testId}) into local storage sync queue`);
+    setOfflineSyncMessage(`Queued "${testSpecies}" into local sync queue!`);
+    setTimeout(() => setOfflineSyncMessage(null), 3000);
+  };
+
+  const handleTriggerOfflineSync = async () => {
+    setSyncingOffline(true);
+    addLiveLog('info', `[OfflineSync] Starting manual push of ${offlineQueue.length} queued sighting(s) to Supabase...`);
+    try {
+      const syncRes = await syncPendingSightings({
+        onSightingSynced: (synced) => {
+          addLiveLog('info', `[OfflineSync] Successfully pushed "${synced.speciesName}" to Supabase database!`);
+        },
+      });
+      setOfflineSyncMessage(`Sync complete: ${syncRes.succeeded} succeeded, ${syncRes.failed} failed.`);
+      addLiveLog(
+        syncRes.failed === 0 ? 'info' : 'warn',
+        `[OfflineSync] Finished: ${syncRes.succeeded} succeeded, ${syncRes.failed} failed`
+      );
+    } catch (err: any) {
+      addLiveLog('error', `[OfflineSync] Error during manual sync: ${err.message || err}`);
+      setOfflineSyncMessage(`Sync error: ${err.message || err}`);
+    } finally {
+      setSyncingOffline(false);
+    }
+  };
   const [liveLogs, setLiveLogs] = useState<
     Array<{ id: string; time: string; level: 'log' | 'info' | 'warn' | 'error'; text: string; raw?: any }>
   >([]);
@@ -494,6 +590,18 @@ export const DiagnosticTestPage: React.FC<DiagnosticTestPageProps> = ({ onBack }
           <Terminal className="w-3.5 h-3.5" />
           <span>Console Stream ({liveLogs.length})</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('offline')}
+          className={`px-4 py-2.5 text-xs font-mono-code font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
+            activeTab === 'offline'
+              ? 'border-amber-400 text-amber-300'
+              : 'border-transparent text-[#edeeef]/60 hover:text-[#edeeef]'
+          }`}
+        >
+          <CloudOff className="w-3.5 h-3.5" />
+          <span>Offline Sync Queue ({offlineQueue.length})</span>
+        </button>
       </div>
 
       {/* Tab 1: Overview */}
@@ -703,6 +811,185 @@ export const DiagnosticTestPage: React.FC<DiagnosticTestPageProps> = ({ onBack }
                 </span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 5: Offline Sync Queue */}
+      {activeTab === 'offline' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Status Card */}
+            <div className="bg-[#111315] border border-[rgba(237,238,239,0.1)] rounded-2xl p-5 space-y-3">
+              <h3 className="text-xs font-bold font-syne text-[#edeeef] uppercase tracking-wider flex items-center space-x-2">
+                <Wifi className="w-4 h-4 text-emerald-400" />
+                <span>Device Connectivity</span>
+              </h3>
+              <div className="space-y-2 text-xs font-mono-code">
+                <div className="flex items-center justify-between">
+                  <span className="text-[#edeeef]/60">Physical Network:</span>
+                  <span className={isDeviceOnline() ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                    {isDeviceOnline() ? 'ONLINE (navigator.onLine)' : 'OFFLINE'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[#edeeef]/60">Simulated Field Mode:</span>
+                  <span className={isSimOffline ? 'text-amber-400 font-bold' : 'text-[#edeeef]/60'}>
+                    {isSimOffline ? 'ACTIVE (Simulated Offline)' : 'INACTIVE'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[#edeeef]/60">Effective Sync Status:</span>
+                  <span className={isDeviceOnline() ? 'text-emerald-400' : 'text-amber-300'}>
+                    {isDeviceOnline() ? 'Can Push to Supabase' : 'Queueing Locally'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Queue Summary Card */}
+            <div className="bg-[#111315] border border-[rgba(237,238,239,0.1)] rounded-2xl p-5 space-y-3">
+              <h3 className="text-xs font-bold font-syne text-[#edeeef] uppercase tracking-wider flex items-center space-x-2">
+                <CloudOff className="w-4 h-4 text-amber-400" />
+                <span>Queue Volume</span>
+              </h3>
+              <div className="space-y-2 text-xs font-mono-code">
+                <div className="flex items-center justify-between">
+                  <span className="text-[#edeeef]/60">Queued Observations:</span>
+                  <span className="text-amber-400 font-bold text-base">{offlineQueue.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[#edeeef]/60">Storage Key:</span>
+                  <span className="text-sky-400 truncate max-w-[140px]">localStorage: aerotrack_offline_sightings_queue</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[#edeeef]/60">Auto-Sync Heartbeat:</span>
+                  <span className="text-emerald-400">12s Polling + Event Listeners</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive Actions Card */}
+            <div className="bg-[#111315] border border-[rgba(237,238,239,0.1)] rounded-2xl p-5 space-y-3">
+              <h3 className="text-xs font-bold font-syne text-[#edeeef] uppercase tracking-wider flex items-center space-x-2">
+                <Zap className="w-4 h-4 text-[#00ffaa]" />
+                <span>Field Test Controls</span>
+              </h3>
+              <div className="space-y-2">
+                <button
+                  onClick={handleToggleSimOffline}
+                  className={`w-full py-2 px-3 rounded-lg text-xs font-mono-code flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
+                    isSimOffline
+                      ? 'bg-amber-500/30 text-amber-200 border border-amber-400 hover:bg-amber-500/40'
+                      : 'bg-black/40 text-[#edeeef] border border-[rgba(237,238,239,0.1)] hover:bg-black/60'
+                  }`}
+                >
+                  {isSimOffline ? <WifiOff className="w-3.5 h-3.5 text-amber-400" /> : <Wifi className="w-3.5 h-3.5" />}
+                  <span>{isSimOffline ? 'Resume Online Mode' : 'Simulate Offline Mode'}</span>
+                </button>
+
+                <button
+                  onClick={handleCreateTestOfflineSighting}
+                  className="w-full py-2 px-3 rounded-lg text-xs font-mono-code bg-[#00ffaa]/10 hover:bg-[#00ffaa]/20 text-[#00ffaa] border border-[#00ffaa]/30 flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Enqueue Sample Observation</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Sync Trigger and Queue Table */}
+          <div className="bg-[#111315] border border-[rgba(237,238,239,0.1)] rounded-2xl p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold font-syne text-[#edeeef] flex items-center space-x-2">
+                  <Cloud className="w-4 h-4 text-[#00ffaa]" />
+                  <span>Pending Observations in Local Storage Queue ({offlineQueue.length})</span>
+                </h3>
+                <p className="text-xs text-[#edeeef]/60 font-mono-code mt-0.5">
+                  Items persist in browser local storage and push into Supabase table public.sighting_logs upon reconnection.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2 shrink-0">
+                {offlineQueue.length > 0 && (
+                  <button
+                    onClick={clearSyncQueue}
+                    className="px-3 py-1.5 rounded-lg text-xs font-mono-code text-rose-400 hover:text-rose-300 bg-rose-500/10 border border-rose-500/20 flex items-center space-x-1 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={handleTriggerOfflineSync}
+                  disabled={syncingOffline || offlineQueue.length === 0 || !isDeviceOnline()}
+                  className="px-4 py-2 rounded-lg text-xs font-mono-code font-bold bg-[#00ffaa] hover:bg-[#00ffaa]/90 text-[#0b0c0d] flex items-center space-x-1.5 transition-all shadow-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${syncingOffline ? 'animate-spin' : ''}`} />
+                  <span>{syncingOffline ? 'Syncing...' : 'Push Queue to Supabase'}</span>
+                </button>
+              </div>
+            </div>
+
+            {offlineSyncMessage && (
+              <div className="p-3 bg-[#00ffaa]/10 border border-[#00ffaa]/30 rounded-xl text-xs font-mono-code text-[#00ffaa]">
+                {offlineSyncMessage}
+              </div>
+            )}
+
+            {offlineQueue.length === 0 ? (
+              <div className="text-center py-12 text-[#edeeef]/40 font-mono-code text-xs">
+                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-400 opacity-60" />
+                <p>Sync queue is empty — all observations have been synchronized to Supabase!</p>
+                <p className="text-[11px] text-[#edeeef]/30 mt-1">
+                  Click "Enqueue Sample Observation" or submit a sighting in the app while offline to test.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-mono-code">
+                  <thead>
+                    <tr className="border-b border-[rgba(237,238,239,0.1)] text-[#edeeef]/50">
+                      <th className="p-2">Queue ID</th>
+                      <th className="p-2">Species</th>
+                      <th className="p-2">Location</th>
+                      <th className="p-2">Queued At</th>
+                      <th className="p-2">Retries</th>
+                      <th className="p-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[rgba(237,238,239,0.05)] text-[#edeeef]">
+                    {offlineQueue.map((item) => (
+                      <tr key={item.queueId} className="hover:bg-[#edeeef]/5">
+                        <td className="p-2 text-[#00ffaa] truncate max-w-[130px]">{item.queueId}</td>
+                        <td className="p-2 font-bold">{item.sighting.speciesName}</td>
+                        <td className="p-2 text-[#edeeef]/70">{item.sighting.locationName}</td>
+                        <td className="p-2 text-[#edeeef]/50">
+                          {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </td>
+                        <td className="p-2 text-amber-400">{item.retryCount}</td>
+                        <td className="p-2">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
+                              item.status === 'syncing'
+                                ? 'bg-sky-500/20 text-sky-300'
+                                : item.status === 'failed'
+                                ? 'bg-rose-500/20 text-rose-300'
+                                : 'bg-amber-500/20 text-amber-300'
+                            }`}
+                          >
+                            {item.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -6,7 +6,8 @@ import { uploadSightingPhotoToSupabase } from '../services/sightingsService';
 import { computeImageHash, checkDuplicateImage } from '../utils/imageHasher';
 import { optimizeImageForApi } from '../utils/imageOptimizer';
 import { safeFetchJson, extractErrorMessage } from '../utils/apiClient';
-import { Camera, MapPin, Upload, Navigation, CheckCircle2, AlertCircle, Sparkles, Plus, Image as ImageIcon, Crosshair, RefreshCw, Tag, ShieldCheck, Search, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { isDeviceOnline } from '../services/offlineSyncService';
+import { Camera, MapPin, Upload, Navigation, CheckCircle2, AlertCircle, Sparkles, Plus, Image as ImageIcon, Crosshair, RefreshCw, Tag, ShieldCheck, Search, ShieldAlert, AlertTriangle, WifiOff, CloudOff } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 interface SightingLoggerProps {
@@ -89,6 +90,18 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
   const [isSimulatingWebDownload, setIsSimulatingWebDownload] = useState<boolean>(false);
   const [isVerifyingPhoto, setIsVerifyingPhoto] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isOnline, setIsOnline] = useState<boolean>(isDeviceOnline());
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Helper to immediately lift account suspension in demo mode
   const handleClearRestriction = () => {
@@ -684,6 +697,21 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
           
+          {!isOnline && (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/40 rounded-lg text-amber-200 font-mono-code text-xs flex items-start space-x-3 animate-in fade-in shadow-lg">
+              <WifiOff className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <span className="font-syne font-bold text-amber-300 uppercase tracking-wide">Offline Field Mode Active</span>
+                  <span className="bg-amber-500/20 text-amber-300 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Local Sync Queue</span>
+                </div>
+                <p className="text-amber-200/90 text-xs leading-relaxed">
+                  No internet connection detected. You can safely record your bird sighting, notes, and photos right now. Your observation will be stored locally and automatically pushed to the Supabase database once connectivity is restored.
+                </p>
+              </div>
+            </div>
+          )}
+
           {duplicateWarning && (
             <div className="p-4 bg-rose-950/80 border-2 border-rose-500 rounded-lg space-y-2 animate-in fade-in shadow-xl">
               <div className="flex items-start space-x-3">
@@ -1212,6 +1240,11 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
                 <>
                   <ShieldAlert className="w-5 h-5 text-amber-400" />
                   <span>Lift Suspension & Publish Observation</span>
+                </>
+              ) : !isOnline ? (
+                <>
+                  <CloudOff className="w-5 h-5 text-[#0b0c0d]" />
+                  <span>Save Observation (Offline Sync Queue)</span>
                 </>
               ) : (
                 <>
