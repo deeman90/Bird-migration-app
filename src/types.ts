@@ -62,7 +62,7 @@ export interface BirdSpecies {
   wingspanCm: number;
 }
 
-export type SightingBehavior = 'flying' | 'nesting' | 'resting' | 'feeding';
+export type SightingBehavior = 'flying' | 'nesting' | 'resting' | 'feeding' | 'roosting';
 
 export interface Comment {
   id: string;

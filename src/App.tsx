@@ -25,7 +25,11 @@ import { DiagnosticTestPage } from './components/DiagnosticTestPage';
 import { AIBirdIdentifierModal } from './components/AIBirdIdentifierModal';
 import { AccountRestrictionModal } from './components/AccountRestrictionModal';
 import { PaymentModal } from './components/PaymentModal';
-import { SubscriptionRecord } from './services/subscriptionService';
+import {
+  SubscriptionRecord,
+  getUserSubscription,
+  cancelUserSubscription,
+} from './services/subscriptionService';
 import { supabase } from './supabaseClient';
 import {
   fetchSightingsFromSupabase,
@@ -47,6 +51,52 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from './context/ThemeContext';
 
 export type AppTab = 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings' | 'donate' | 'diagnostic';
+
+// Helper to merge remote sightings with local state & pending offline queue, sorted newest first
+function mergeSightings(existingList: Sighting[], remoteList: Sighting[]): Sighting[] {
+  const pendingQueue = getPendingSightingsQueue();
+  const pendingSightings = pendingQueue.map((item) => item.sighting);
+
+  const map = new Map<string, Sighting>();
+
+  // 1. Add remote sightings from Supabase
+  for (const s of remoteList) {
+    if (s && s.id) {
+      map.set(s.id, s);
+    }
+  }
+
+  // 2. Add existing sightings (preserving locally logged user sightings that may not be in remote yet)
+  for (const s of existingList) {
+    if (s && s.id) {
+      if (!map.has(s.id)) {
+        map.set(s.id, s);
+      } else {
+        const remote = map.get(s.id)!;
+        map.set(s.id, {
+          ...remote,
+          likedByMe: s.likedByMe ?? remote.likedByMe,
+          likesCount: Math.max(s.likesCount || 0, remote.likesCount || 0),
+          comments: (s.comments?.length || 0) >= (remote.comments?.length || 0) ? s.comments : remote.comments,
+        });
+      }
+    }
+  }
+
+  // 3. Add pending queue sightings (highest priority for offline status)
+  for (const s of pendingSightings) {
+    if (s && s.id) {
+      map.set(s.id, { ...s, syncStatus: 'pending' });
+    }
+  }
+
+  // Convert map to array and sort by newest timestamp first
+  return Array.from(map.values()).sort((a, b) => {
+    const timeA = new Date(a.timestamp).getTime() || 0;
+    const timeB = new Date(b.timestamp).getTime() || 0;
+    return timeB - timeA;
+  });
+}
 
 export default function App() {
   const { theme, isLight } = useTheme();
@@ -210,6 +260,27 @@ export default function App() {
     }
   }, []);
 
+  // Verify and maintain subscription status across reloads
+  useEffect(() => {
+    async function checkSubscription() {
+      try {
+        const activeUserId = session?.user?.id || currentUser.id;
+        if (activeUserId) {
+          const sub = await getUserSubscription(activeUserId);
+          if (sub && sub.status === 'active') {
+            const isNotExpired = !sub.currentPeriodEnd || new Date(sub.currentPeriodEnd) > new Date();
+            if (isNotExpired && currentUser.tier !== 'paid') {
+              setCurrentUser((prev) => ({ ...prev, tier: 'paid' }));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Subscription verify notice:', err);
+      }
+    }
+    checkSubscription();
+  }, [session, currentUser.id]);
+
   // Sync user profile from Supabase profiles table
   useEffect(() => {
     async function loadUserProfile() {
@@ -217,6 +288,9 @@ export default function App() {
         const authUserId = session?.user?.id;
         if (authUserId) {
           const { data: dbProfile } = await fetchUserProfile(authUserId);
+          const sub = await getUserSubscription(authUserId);
+          const hasActiveSub = sub && sub.status === 'active' && (!sub.currentPeriodEnd || new Date(sub.currentPeriodEnd) > new Date());
+
           if (dbProfile) {
             setCurrentUser((prev) => ({
               ...prev,
@@ -226,7 +300,10 @@ export default function App() {
               name: dbProfile.name || prev.name,
               avatar: dbProfile.avatar || prev.avatar,
               address: dbProfile.address || prev.address,
+              tier: hasActiveSub ? 'paid' : (dbProfile.tier === 'paid' ? 'paid' : prev.tier),
             }));
+          } else if (hasActiveSub) {
+            setCurrentUser((prev) => ({ ...prev, tier: 'paid' }));
           }
         }
       } catch (err) {
@@ -270,16 +347,28 @@ export default function App() {
 
   // Toggle User Tier / Open Paystack & Flutterwave Payment Modal
   const handleToggleUserTier = () => {
-    if (currentUser.tier === 'free') {
-      setIsPaymentModalOpen(true);
-    } else {
-      const updatedUser: User = {
-        ...currentUser,
-        tier: 'free',
-      };
-      setCurrentUser(updatedUser);
-      showToast('Switched to Free Observer mode.', 'success');
+    setIsPaymentModalOpen(true);
+  };
+
+  // Subscription Cancellation Callback
+  const handleCancelSubscription = async () => {
+    try {
+      await cancelUserSubscription(currentUser.id);
+    } catch {
+      // ignore
     }
+    const updatedUser: User = {
+      ...currentUser,
+      tier: 'free',
+    };
+    setCurrentUser(updatedUser);
+    try {
+      localStorage.setItem('aerotrack_user', JSON.stringify(updatedUser));
+    } catch {
+      // ignore
+    }
+    saveUserProfile(updatedUser).catch((err) => console.warn('Sync cancel profile tier notice:', err));
+    showToast('VIP PRO Subscription cancelled. Switched to Free Observer mode.', 'success');
   };
 
   // Payment Success Callback (Paystack / Flutterwave)
@@ -290,6 +379,14 @@ export default function App() {
       tier: 'paid',
     };
     setCurrentUser(updatedUser);
+    try {
+      localStorage.setItem('aerotrack_user', JSON.stringify(updatedUser));
+      localStorage.setItem(`aerotrack_subscription_${currentUser.id}`, JSON.stringify(subscription));
+      localStorage.setItem('aerotrack_active_subscription', JSON.stringify(subscription));
+    } catch {
+      // ignore
+    }
+    saveUserProfile(updatedUser).catch((err) => console.warn('Sync profile tier notice:', err));
     showToast(`🎉 VIP PRO Unlocked via ${subscription.provider.toUpperCase()}! Ref: ${subscription.transactionRef}`, 'pro');
     confetti({
       particleCount: 120,
@@ -336,25 +433,13 @@ export default function App() {
     };
   }, [session?.user?.id, sightings.length]);
 
-  // Load sightings from Supabase
+  // Load sightings from Supabase with intelligent merging
   useEffect(() => {
     async function loadData() {
       try {
         const { data, error } = await fetchSightingsFromSupabase();
         if (!error && data && data.length > 0) {
-          // Merge pending offline sightings so they remain visible with their pending status
-          const pendingQueue = getPendingSightingsQueue();
-          const pendingSightings = pendingQueue.map((item) => item.sighting);
-          const merged = [
-            ...pendingSightings,
-            ...data.filter(
-              (d) =>
-                !pendingSightings.some(
-                  (p) => p.id === d.id || (p.imageHash && d.imageHash && p.imageHash === d.imageHash)
-                )
-            ),
-          ];
-          setSightings(merged);
+          setSightings((prev) => mergeSightings(prev, data));
         }
       } catch (err) {
         console.warn('Load sightings notice:', err);
@@ -366,20 +451,30 @@ export default function App() {
   // Realtime subscription: keep sightings in sync across tabs or external database modifications
   useEffect(() => {
     let channel: any = null;
+
+    const refreshRemoteSightings = async () => {
+      try {
+        const { data } = await fetchSightingsFromSupabase();
+        if (data && data.length > 0) {
+          setSightings((prev) => mergeSightings(prev, data));
+        }
+      } catch (err) {
+        console.warn('Realtime fetch sightings notice:', err);
+      }
+    };
+
     try {
       channel = supabase
         .channel('supabase-sightings-realtime')
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'sighting_logs' },
-          async () => {
-            try {
-              const { data } = await fetchSightingsFromSupabase();
-              if (data) setSightings(data);
-            } catch (err) {
-              console.warn('Realtime fetch sightings notice:', err);
-            }
-          }
+          refreshRemoteSightings
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'sightings' },
+          refreshRemoteSightings
         )
         .subscribe((status, err) => {
           if (err) {
@@ -390,7 +485,35 @@ export default function App() {
       console.warn('Realtime channel setup notice:', err);
     }
 
+    // Synchronize sightings immediately across browser tabs via storage event
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'aerotrack_sightings' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSightings(parsed);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // Periodic live feed polling every 15s when online to pull newest sightings of users
+    const pollInterval = setInterval(() => {
+      if (isDeviceOnline()) {
+        fetchSightingsFromSupabase().then(({ data }) => {
+          if (data && data.length > 0) {
+            setSightings((prev) => mergeSightings(prev, data));
+          }
+        }).catch(() => {});
+      }
+    }, 15000);
+
     return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(pollInterval);
       if (channel) {
         try {
           supabase.removeChannel(channel);
@@ -482,8 +605,8 @@ export default function App() {
     try {
       const { data, error } = await fetchSightingsFromSupabase();
       if (!error && data) {
-        setSightings(data);
-        showToast(`✓ Refreshed ${data.length} observations from Supabase database table!`, 'success');
+        setSightings((prev) => mergeSightings(prev, data));
+        showToast(`✓ Updated feed with ${data.length} observations from users!`, 'success');
       } else if (error) {
         showToast(`Notice: ${error.message || 'Could not fetch cloud sightings'}`, 'pro');
       }
@@ -912,6 +1035,7 @@ export default function App() {
         onClose={() => setIsPaymentModalOpen(false)}
         currentUser={currentUser}
         onPaymentSuccess={handlePaymentSuccess}
+        onCancelSubscription={handleCancelSubscription}
       />
     </div>
   );

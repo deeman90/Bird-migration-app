@@ -13,7 +13,6 @@ import {
   ExternalLink, 
   ShieldCheck, 
   RefreshCw, 
-  Database, 
   Sparkles, 
   CheckCircle2, 
   Eye, 
@@ -219,13 +218,13 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
             </select>
           </div>
 
-          {/* Refresh Database Table Button */}
+          {/* Refresh Table Button */}
           {onRefresh && (
             <button
               onClick={onRefresh}
               disabled={isRefreshing}
               className="min-h-[38px] px-3.5 py-2 rounded-md bg-[#121417] hover:bg-[#1a1d22] border border-[rgba(237,238,239,0.18)] text-[#00ffaa] font-mono-code text-xs font-semibold uppercase tracking-wider flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-50 shrink-0"
-              title="Force reload latest sightings from Supabase public.sighting_logs / public.sightings table"
+              title="Refresh observations table"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#00ffaa]' : ''}`} />
               <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh Table'}</span>
@@ -283,7 +282,7 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
           <div className="flex items-center space-x-2 text-[11px] font-mono-code text-[#edeeef]/60">
             <span className="flex items-center space-x-1 text-[#00ffaa]">
               <span className="w-2 h-2 rounded-full bg-[#00ffaa] animate-pulse inline-block" />
-              <span>Supabase Live DB</span>
+              <span>Live Feed</span>
             </span>
             <span>•</span>
             <span>Showing {sortedSightings.length} of {sightings.length} entries</span>
@@ -373,7 +372,7 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
                   </div>
                 </th>
 
-                <th className="p-3 sm:px-4 sm:py-3 text-center">Cloud DB</th>
+                <th className="p-3 sm:px-4 sm:py-3 text-center">Status</th>
 
                 <th className="p-3 sm:px-4 sm:py-3 text-right">Actions</th>
               </tr>
@@ -383,7 +382,7 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
               {sortedSightings.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="p-8 text-center text-[#edeeef]/40 font-mono-code">
-                    <Database className="w-8 h-8 mx-auto text-[#edeeef]/20 mb-2" />
+                    <Table className="w-8 h-8 mx-auto text-[#edeeef]/20 mb-2" />
                     <p className="font-bold text-xs uppercase text-[#edeeef]/70">No matching sightings in table</p>
                     <p className="text-[11px] mt-1 text-[#edeeef]/40">
                       Try clearing your search query or log a new observation to populate the table.
@@ -546,7 +545,7 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
                         ) : (
                           <span
                             className="inline-flex items-center space-x-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase"
-                            title="Live Synced in Supabase database"
+                            title="Synced"
                           >
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
                             <span>Synced</span>
@@ -584,12 +583,12 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
                           {onDeleteSighting && owner && (
                             <button
                               onClick={() => {
-                                if (window.confirm(`Delete observation of ${s.speciesName} from database?`)) {
+                                if (window.confirm(`Delete observation of ${s.speciesName}?`)) {
                                   onDeleteSighting(s.id);
                                 }
                               }}
                               className="p-1.5 rounded bg-[rgba(237,238,239,0.06)] hover:bg-rose-500/20 text-[#edeeef]/60 hover:text-rose-400 transition-colors cursor-pointer"
-                              title="Delete from Supabase Table"
+                              title="Delete Observation"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -640,17 +639,6 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
             )}
           </div>
         )}
-
-        {/* Table Database Status Footer */}
-        <div className="p-3 bg-[#121417] border-t border-[rgba(237,238,239,0.12)] flex flex-col sm:flex-row items-center justify-between text-[11px] font-mono-code text-[#edeeef]/50 gap-2">
-          <div className="flex items-center space-x-2">
-            <Database className="w-3.5 h-3.5 text-[#00ffaa]" />
-            <span>Target Tables: <code className="text-[#00ffaa]">public.sighting_logs</code> &amp; <code className="text-[#00ffaa]">public.sightings</code></span>
-          </div>
-          <div>
-            <span>PostgreSQL Row Level Security (RLS) Active</span>
-          </div>
-        </div>
       </div>
     </div>
   );

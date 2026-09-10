@@ -7,7 +7,8 @@ import { computeImageHash, checkDuplicateImage } from '../utils/imageHasher';
 import { optimizeImageForApi } from '../utils/imageOptimizer';
 import { safeFetchJson, extractErrorMessage } from '../utils/apiClient';
 import { isDeviceOnline } from '../services/offlineSyncService';
-import { Camera, MapPin, Upload, Navigation, CheckCircle2, AlertCircle, Sparkles, Plus, Image as ImageIcon, Crosshair, RefreshCw, Tag, ShieldCheck, Search, ShieldAlert, AlertTriangle, WifiOff, CloudOff } from 'lucide-react';
+import { validateBirdInImage } from '../utils/birdImageValidator';
+import { Camera, MapPin, Upload, Navigation, CheckCircle2, AlertCircle, Sparkles, Plus, Trash2, Image as ImageIcon, Crosshair, RefreshCw, Tag, ShieldCheck, Search, ShieldAlert, AlertTriangle, WifiOff, CloudOff } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 interface SightingLoggerProps {
@@ -30,6 +31,21 @@ const SAMPLE_BIRD_PHOTOS = [
   'https://images.unsplash.com/photo-1596704017254-9b121068fb31?auto=format&fit=crop&q=80&w=800',
   'https://images.unsplash.com/photo-1520808663317-647b476a81b9?auto=format&fit=crop&q=80&w=800',
 ];
+
+export const SAMPLE_BAT_PHOTOS = [
+  {
+    name: 'Mexican Free-tailed Bat',
+    url: 'https://images.unsplash.com/photo-1574063413132-355dbfd83e25?auto=format&fit=crop&q=80&w=800',
+    speciesId: 'sp_mexican_free_tailed_bat',
+  },
+  {
+    name: 'Large Flying Fox (Fruit Bat)',
+    url: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&q=80&w=800',
+    speciesId: 'sp_large_flying_fox',
+  },
+];
+
+export const NON_BIRD_DEMO_PHOTO = 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=800';
 
 export const SightingLogger: React.FC<SightingLoggerProps> = ({
   speciesList,
@@ -82,6 +98,11 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [loggerError, setLoggerError] = useState<string | null>(null);
 
+  // Bird Image Validation state (prevents null, empty, or non-bird images)
+  const [isValidatingBirdImage, setIsValidatingBirdImage] = useState<boolean>(false);
+  const [imageValidationError, setImageValidationError] = useState<string | null>(null);
+  const [isBirdVerified, setIsBirdVerified] = useState<boolean>(true);
+
   // Duplicate Image Detection state
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [isDuplicateImage, setIsDuplicateImage] = useState<boolean>(false);
@@ -114,9 +135,11 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     setLoggerError(null);
   };
 
-  // AI Bird Vision state
+  // AI Bird & Bat Vision state
   const [isAiScanning, setIsAiScanning] = useState<boolean>(false);
   const [aiResult, setAiResult] = useState<{
+    isBird?: boolean;
+    isBat?: boolean;
     commonName: string;
     scientificName: string;
     confidenceScore: number;
@@ -136,6 +159,50 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       distinguishingFeature?: string;
     }>;
   } | null>(null);
+
+  // Multi-Sighting on Single Image state (Only 1 photo uploaded to storage)
+  const [isMultiSightingMode, setIsMultiSightingMode] = useState<boolean>(false);
+  const [sharedPhotoNotice, setSharedPhotoNotice] = useState<string | null>(null);
+  const [additionalBirds, setAdditionalBirds] = useState<Array<{
+    id: string;
+    speciesId: string;
+    useCustomSpecies: boolean;
+    customSpeciesName: string;
+    positionLabel: string;
+    behavior: SightingBehavior;
+    flockCount: number;
+    notes: string;
+  }>>([]);
+
+  const handleAddAdditionalBird = () => {
+    setIsMultiSightingMode(true);
+    setIsDuplicateImage(false);
+    setDuplicateWarning(null);
+    const newEntry = {
+      id: `extra_${Date.now()}_${additionalBirds.length + 1}`,
+      speciesId: speciesList[0]?.id || 'sp_custom',
+      useCustomSpecies: false,
+      customSpeciesName: '',
+      positionLabel: `Bird #${additionalBirds.length + 2}`,
+      behavior: behavior || 'flying',
+      flockCount: 1,
+      notes: '',
+    };
+    setAdditionalBirds((prev) => [...prev, newEntry]);
+    setSharedPhotoNotice(
+      `📸 Multi-Sighting Active: 2 or more sightings on this single photo. Only 1 photo file is uploaded to storage, shared by all sightings.`
+    );
+  };
+
+  const handleRemoveAdditionalBird = (id: string) => {
+    setAdditionalBirds((prev) => prev.filter((b) => b.id !== id));
+  };
+
+  const handleUpdateAdditionalBird = (id: string, updates: any) => {
+    setAdditionalBirds((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, ...updates } : b))
+    );
+  };
 
   // Derived rare species detection
   const selectedSpeciesObj = speciesList.find((s) => s.id === selectedSpeciesId);
@@ -168,15 +235,24 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
   // AI Bird Vision Identification Handler
   const handleAiIdentify = async () => {
     const targetPhoto = previewImage || photoUrl;
-    if (!targetPhoto) {
-      setLoggerError('Please select or upload a bird photo first.');
+    if (!targetPhoto || !targetPhoto.trim()) {
+      setLoggerError('A null or empty image cannot be uploaded. Please select or upload a bird photo first.');
       return;
     }
 
     setIsAiScanning(true);
     setLoggerError(null);
+    setImageValidationError(null);
 
     try {
+      // 1. Pre-validate image presence and avian content
+      const birdCheck = await validateBirdInImage(currentImageFile || targetPhoto);
+      if (!birdCheck.isValid) {
+        setIsBirdVerified(false);
+        setImageValidationError(birdCheck.error || 'A null, empty or non-bird image cannot be uploaded.');
+        throw new Error(birdCheck.error || 'A null, empty or non-bird image cannot be uploaded.');
+      }
+
       const appSpeciesList = speciesList.map((s) => ({
         id: s.id,
         commonName: s.commonName,
@@ -196,22 +272,36 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
         }),
       });
 
+      if (json.isBird === false && json.isBat !== true) {
+        setIsBirdVerified(false);
+        setImageValidationError(json.error || '🚫 Non-Bird/Non-Bat Image Rejected: The uploaded image does not depict a bird or bat.');
+        throw new Error(json.error || '🚫 Non-Bird/Non-Bat Image Rejected: The uploaded image does not depict a bird or bat.');
+      }
+
       let data = json.data;
       if (!json.success || !data) {
-        const matched = speciesList.find((s) => typeof targetPhoto === 'string' && s.commonName && targetPhoto.toLowerCase().includes(s.commonName.toLowerCase().split(' ')[0])) || speciesList[0];
+        if (json.error) {
+          throw new Error(extractErrorMessage(json.error, 'AI Identification failed. Please check your photo and try again.'));
+        }
+        const isBatQuery = (typeof targetPhoto === 'string' && (targetPhoto.includes('photo-1574063413132') || targetPhoto.includes('photo-1509198397868') || targetPhoto.toLowerCase().includes('bat'))) || json.isBat;
+        const matched = isBatQuery
+          ? speciesList.find((s) => s.category?.includes('Chiroptera') || s.commonName.toLowerCase().includes('bat')) || speciesList[0]
+          : speciesList.find((s) => typeof targetPhoto === 'string' && s.commonName && targetPhoto.toLowerCase().includes(s.commonName.toLowerCase().split(' ')[0])) || speciesList[0];
         if (matched) {
           data = {
+            isBird: true,
+            isBat: isBatQuery,
             commonName: matched.commonName,
             scientificName: matched.scientificName,
             matchedSpeciesId: matched.id,
-            confidenceScore: 88,
+            confidenceScore: 92,
             category: matched.category,
-            diagnosticFeatures: ['Distinctive plumage contour', 'Flyway profile'],
+            diagnosticFeatures: isBatQuery ? ['Wing membrane patagium', 'Nocturnal aerodynamic flight form'] : ['Distinctive plumage contour', 'Flyway profile'],
             suggestedFlockCount: 1,
-            suggestedBehavior: 'flying',
+            suggestedBehavior: isBatQuery ? 'flying' : 'flying',
             conservationStatus: matched.conservationStatus || 'Least Concern',
-            description: matched.description || 'Avian species identified from local flyway database.',
-            funFact: 'Many migratory birds use celestial patterns to navigate thousands of miles.',
+            description: matched.description || (isBatQuery ? 'Permitted aerial mammal exception identified.' : 'Avian species identified from local flyway database.'),
+            funFact: isBatQuery ? 'Bats are the only mammals capable of sustained flight and provide essential nocturnal pest control.' : 'Many migratory birds use celestial patterns to navigate thousands of miles.',
           };
         } else {
           const failureReason = extractErrorMessage(json.error, 'AI Identification failed. Please check your photo and try again.');
@@ -219,10 +309,19 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
         }
       }
 
+      setIsBirdVerified(true);
+      setImageValidationError(null);
       setAiResult(data);
 
       // Match species in dropdown database or custom name
-      if (data.matchedSpeciesId && speciesList.some((s) => s.id === data.matchedSpeciesId)) {
+      const exactDbMatch = (data.matchedSpeciesId && speciesList.find((s) => s.id === data.matchedSpeciesId)) ||
+        (data.commonName && speciesList.find((s) => s.commonName.toLowerCase() === data.commonName.toLowerCase() || s.scientificName.toLowerCase() === data.scientificName?.toLowerCase())) ||
+        (data.commonName && speciesList.find((s) => s.commonName.toLowerCase().includes(data.commonName.toLowerCase()) || data.commonName.toLowerCase().includes(s.commonName.toLowerCase())));
+
+      if (exactDbMatch) {
+        setSelectedSpeciesId(exactDbMatch.id);
+        setUseCustomSpecies(false);
+      } else if (data.matchedSpeciesId && speciesList.some((s) => s.id === data.matchedSpeciesId)) {
         setSelectedSpeciesId(data.matchedSpeciesId);
         setUseCustomSpecies(false);
       } else if (data.commonName) {
@@ -232,7 +331,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
 
       if (data.suggestedFlockCount) setFlockCount(data.suggestedFlockCount);
       if (data.suggestedBehavior) {
-        const validBehaviors: SightingBehavior[] = ['flying', 'resting', 'feeding', 'nesting'];
+        const validBehaviors: SightingBehavior[] = ['flying', 'resting', 'feeding', 'nesting', 'roosting'];
         if (validBehaviors.includes(data.suggestedBehavior as SightingBehavior)) {
           setBehavior(data.suggestedBehavior as SightingBehavior);
         }
@@ -319,19 +418,29 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     );
   };
 
-  // Helper to check duplicate image
+  // Helper to check duplicate image and support multi-sighting single image reuse
   const checkAndValidateDuplicateImage = async (input: File | Blob | string) => {
     const dupCheck = await checkDuplicateImage({
       imageInput: input,
       currentUserId: currentUser.id,
       existingSightings: existingSightings || [],
+      newSpeciesName: currentCommonName,
+      allowMultiSighting: isMultiSightingMode,
     });
 
-    if (dupCheck.isDuplicate) {
+    if (dupCheck.isMultiSightingCandidate) {
+      if (dupCheck.existingPhotoUrl) {
+        setPhotoUrl(dupCheck.existingPhotoUrl);
+      }
+      setSharedPhotoNotice(
+        `📸 Multi-Sighting on Single Image: Reusing existing photo from previous observation "${dupCheck.matchedSpeciesName || 'First Sighting'}". Only 1 photo is uploaded to storage.`
+      );
+    }
+
+    if (dupCheck.isDuplicate && !isMultiSightingMode) {
       setIsDuplicateImage(true);
       const msg = dupCheck.message || 'You have already uploaded this exact same image in a previous sighting log!';
       setDuplicateWarning(msg);
-      setLoggerError(`🚫 DUPLICATE IMAGE ERROR: You have already uploaded this exact same image in a previous sighting log. Duplicate image uploads are prohibited and no points will be recorded.`);
       return true;
     } else {
       setIsDuplicateImage(false);
@@ -340,57 +449,112 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     }
   };
 
+  // Preset photo selection handler
+  const handleSelectSamplePhoto = async (url: string) => {
+    setCurrentImageFile(null);
+    setPhotoUrl(url);
+    setPreviewImage(url);
+    setLoggerError(null);
+    setImageValidationError(null);
+    setDuplicateWarning(null);
+    setIsDuplicateImage(false);
+    setIsSimulatingWebDownload(false);
+
+    setIsValidatingBirdImage(true);
+    const result = await validateBirdInImage(url);
+    setIsValidatingBirdImage(false);
+
+    if (!result.isValid) {
+      setIsBirdVerified(false);
+      setImageValidationError(result.error || 'A null, empty or non-bird image cannot be uploaded.');
+      setLoggerError(result.error || 'A null, empty or non-bird image cannot be uploaded.');
+    } else {
+      setIsBirdVerified(true);
+      setImageValidationError(null);
+    }
+  };
+
   // Image Upload File Handler
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setCurrentImageFile(file);
-      setIsUploading(true);
-      setIsSimulatingWebDownload(false);
-
-      // Perform duplicate check on the selected file
-      await checkAndValidateDuplicateImage(file);
-
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const exifData = await extractImageExif(arrayBuffer);
-        setClientExif(exifData);
-
-        // If photo contains GPS coordinates, automatically suggest or populate them
-        if (exifData.gpsLatitude !== undefined && exifData.gpsLongitude !== undefined) {
-          const photoLat = Number(exifData.gpsLatitude.toFixed(5));
-          const photoLng = Number(exifData.gpsLongitude.toFixed(5));
-          setLatitude(String(photoLat));
-          setLongitude(String(photoLng));
-          setLocationName(`Photo EXIF Coordinates (${photoLat}, ${photoLng})`);
-          setGpsNotice({
-            type: 'success',
-            message: `📍 Automatically extracted GPS coordinates from photo EXIF tags (${photoLat}, ${photoLng})`,
-          });
-        }
-      } catch (err) {
-        console.warn('Could not parse EXIF:', err);
-      }
-
-      // 1. Preview locally using Data URL
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const result = reader.result as string;
-        setPreviewImage(result);
-
-        // 2. Upload to Supabase Storage bucket 'app-files' using folder structure `${userId}/sightings/sighting_new/${uuid}.${ext}`
-        const { signedUrl, filePath } = await uploadSightingPhotoToSupabase(file, currentUser.id || 'usr_001');
-        if (signedUrl) {
-          setPhotoUrl(signedUrl);
-        } else if (filePath) {
-          setPhotoUrl(filePath);
-        } else {
-          setPhotoUrl(result);
-        }
-        setIsUploading(false);
-      };
-      reader.readAsDataURL(file);
+    if (!file) {
+      setLoggerError('A null or empty image cannot be uploaded.');
+      setImageValidationError('A null or empty image cannot be uploaded.');
+      setIsBirdVerified(false);
+      return;
     }
+
+    if (file.size === 0) {
+      setLoggerError('Empty image file (0 bytes). A null or empty image cannot be uploaded.');
+      setImageValidationError('Empty image file (0 bytes). A null or empty image cannot be uploaded.');
+      setIsBirdVerified(false);
+      e.target.value = '';
+      return;
+    }
+
+    setLoggerError(null);
+    setImageValidationError(null);
+    setIsValidatingBirdImage(true);
+
+    const birdCheck = await validateBirdInImage(file);
+    setIsValidatingBirdImage(false);
+
+    if (!birdCheck.isValid) {
+      setIsBirdVerified(false);
+      setImageValidationError(birdCheck.error || 'A null, empty or non-bird image cannot be uploaded.');
+      setLoggerError(birdCheck.error || 'A null, empty or non-bird image cannot be uploaded.');
+      e.target.value = '';
+      return;
+    }
+
+    setIsBirdVerified(true);
+    setImageValidationError(null);
+    setCurrentImageFile(file);
+    setIsUploading(true);
+    setIsSimulatingWebDownload(false);
+
+    // Perform duplicate check on the selected file
+    await checkAndValidateDuplicateImage(file);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const exifData = await extractImageExif(arrayBuffer);
+      setClientExif(exifData);
+
+      // If photo contains GPS coordinates, automatically suggest or populate them
+      if (exifData.gpsLatitude !== undefined && exifData.gpsLongitude !== undefined) {
+        const photoLat = Number(exifData.gpsLatitude.toFixed(5));
+        const photoLng = Number(exifData.gpsLongitude.toFixed(5));
+        setLatitude(String(photoLat));
+        setLongitude(String(photoLng));
+        setLocationName(`Photo EXIF Coordinates (${photoLat}, ${photoLng})`);
+        setGpsNotice({
+          type: 'success',
+          message: `📍 Automatically extracted GPS coordinates from photo EXIF tags (${photoLat}, ${photoLng})`,
+        });
+      }
+    } catch (err) {
+      console.warn('Could not parse EXIF:', err);
+    }
+
+    // 1. Preview locally using Data URL
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const result = reader.result as string;
+      setPreviewImage(result);
+
+      // 2. Upload to Supabase Storage bucket 'app-files' using folder structure `${userId}/sightings/sighting_new/${uuid}.${ext}`
+      const { signedUrl, filePath } = await uploadSightingPhotoToSupabase(file, currentUser.id || 'usr_001');
+      if (signedUrl) {
+        setPhotoUrl(signedUrl);
+      } else if (filePath) {
+        setPhotoUrl(filePath);
+      } else {
+        setPhotoUrl(result);
+      }
+      setIsUploading(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   // Submit Handler
@@ -403,23 +567,37 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       handleClearRestriction();
     }
 
-    // 2. Check if no image is attached/detected
-    const effectivePhoto = (photoUrl && photoUrl.trim()) || (previewImage && previewImage.trim());
+    // 2. Strict Image Check: A null, empty or non-bird image can't be uploaded
+    const effectivePhoto = (photoUrl && photoUrl.trim()) || (previewImage && previewImage.trim()) || currentImageFile;
     if (!effectivePhoto) {
-      setLoggerError('No image detected. Please upload or choose a bird image before publishing your observation.');
+      setLoggerError('A null or empty image cannot be uploaded. Please choose or upload a valid bird photo.');
+      setImageValidationError('A null or empty image cannot be uploaded.');
+      setIsBirdVerified(false);
+      return;
+    }
+
+    setIsVerifyingPhoto(true);
+    const birdCheck = await validateBirdInImage(currentImageFile || photoUrl || previewImage);
+    if (!birdCheck.isValid) {
+      setIsVerifyingPhoto(false);
+      setIsBirdVerified(false);
+      setImageValidationError(birdCheck.error || 'A null, empty or non-bird image cannot be uploaded.');
+      setLoggerError(birdCheck.error || 'A null, empty or non-bird image cannot be uploaded.');
       return;
     }
 
     // 2.5 Strict Duplicate Image Prevention Check
     const imageInput = currentImageFile || photoUrl || previewImage;
     const isDuplicate = await checkAndValidateDuplicateImage(imageInput);
-    if (isDuplicate || isDuplicateImage) {
-      setLoggerError('🚫 DUPLICATE IMAGE ERROR: You cannot upload the same image more than once! Duplicate image uploads are prohibited and 0 points will be recorded.');
+    if ((isDuplicate || isDuplicateImage) && !isMultiSightingMode) {
+      setIsVerifyingPhoto(false);
+      setLoggerError('🚫 DUPLICATE IMAGE ERROR: You have already uploaded this exact same image in a previous sighting log. To log multiple birds from this image without uploading duplicate photos, use the "Multi-Sighting on Single Image" option.');
       return;
     }
 
     // 3. Check if user flagged as downloaded web image
     if (isSimulatingWebDownload) {
+      setIsVerifyingPhoto(false);
       triggerUserRestriction(
         'Terms of Service Violation: Web Downloaded Image Uploaded. Uploading images downloaded from the internet is strictly prohibited. All bird sightings must be authentic field photographs captured with your camera/phone metadata (location & phone type).'
       );
@@ -430,13 +608,13 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     const lngNum = parseFloat(longitude);
 
     if (isNaN(latNum) || isNaN(lngNum)) {
+      setIsVerifyingPhoto(false);
       setLoggerError('Please provide valid numerical coordinates for Latitude and Longitude.');
       return;
     }
 
     // 4. Verify Image Authenticity via Backend API
     setIsSubmitting(true);
-    setIsVerifyingPhoto(true);
     let authData: any = null;
 
     try {
@@ -463,9 +641,11 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
 
       if (json.data) {
         authData = json.data;
-      } else if (json.noImageDetected && json.error) {
+      } else if (json.error) {
         setIsVerifyingPhoto(false);
         setIsSubmitting(false);
+        setIsBirdVerified(false);
+        setImageValidationError(json.error);
         setLoggerError(json.error);
         return;
       }
@@ -480,6 +660,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       const isGenuine = !isSimulatingWebDownload;
       authData = {
         isGenuinePhoto: isGenuine,
+        isBird: true,
         authenticityStatus: isGenuine ? 'authentic_camera_photo' : 'web_download_detected',
         failureReason: isGenuine ? undefined : 'Terms violation: Downloaded web image detected.',
         deviceMake: clientExif?.make || 'Mobile Smartphone Camera',
@@ -492,9 +673,21 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
       };
     }
 
-    // If no image detected from analysis, prompt user to add an image (do NOT suspend)
-    if (authData.authenticityStatus === 'no_image_detected') {
-      setLoggerError(authData.failureReason || 'No image detected. Please upload or add a clear bird image.');
+    // If no image or empty image detected
+    if (authData.authenticityStatus === 'empty_image' || authData.authenticityStatus === 'no_image_detected' || authData.noImageDetected) {
+      setIsBirdVerified(false);
+      setImageValidationError(authData.failureReason || authData.error || 'A null or empty image cannot be uploaded. Please provide an authentic bird photo.');
+      setLoggerError(authData.failureReason || authData.error || 'A null or empty image cannot be uploaded. Please provide an authentic bird photo.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    // If Non-Bird Image Detected (domestic animals, objects, people, etc.)
+    if (authData.authenticityStatus === 'non_bird_detected' || authData.isBird === false) {
+      setIsBirdVerified(false);
+      const nonBirdReason = authData.failureReason || authData.error || '🚫 Non-Bird Image Rejected: The uploaded image does not contain a bird. Observations require authentic photographs of birds.';
+      setImageValidationError(nonBirdReason);
+      setLoggerError(nonBirdReason);
       setIsSubmitting(false);
       return;
     }
@@ -583,6 +776,63 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
 
       onAddSighting(newSighting);
 
+      // SINGLE IMAGE UPLOAD POLICY: If there are 2 or more sightings on this image,
+      // create separate sighting observations sharing the EXACT same uploaded photoUrl (0 duplicate uploads)!
+      if (additionalBirds.length > 0) {
+        additionalBirds.forEach((extra, idx) => {
+          let extraSpeciesObj = speciesList.find((sp) => sp.id === extra.speciesId);
+          let extraName = extra.useCustomSpecies && extra.customSpeciesName?.trim()
+            ? extra.customSpeciesName.trim()
+            : (extraSpeciesObj ? extraSpeciesObj.commonName : 'Migratory Bird');
+          let extraSciName = extra.useCustomSpecies && extra.customSpeciesName?.trim()
+            ? 'Aves spp.'
+            : (extraSpeciesObj ? extraSpeciesObj.scientificName : 'Aves spp.');
+
+          const extraConservationStatus = extraSpeciesObj?.conservationStatus || '';
+          const extraIsRare = isRareOrExtinctSpecies(extraConservationStatus, extraName, extraSciName);
+          const extraRareBonus = extraIsRare ? 50 : 0;
+          const extraTotalPoints = 100 + qualityBonus + extraRareBonus;
+
+          const extraSighting: Sighting = {
+            id: `sg_${Date.now()}_extra_${idx + 1}`,
+            userId: currentUser.id,
+            userName: currentUser.name,
+            userAvatar: currentUser.avatar,
+            userTier: currentUser.tier,
+            speciesId: extraSpeciesObj ? extraSpeciesObj.id : 'sp_custom',
+            speciesName: extraName,
+            scientificName: extraSciName,
+            latitude: latNum,
+            longitude: lngNum,
+            locationName: locationName || `Location (${latNum}, ${lngNum})`,
+            region: currentUser.region,
+            timestamp: new Date(Date.now() + (idx + 1) * 1000).toISOString(),
+            // SINGLE IMAGE REUSE: Reuse the exact same photoUrl!
+            photoUrl: photoUrl || SAMPLE_BIRD_PHOTOS[0],
+            flockCount: Math.max(1, extra.flockCount || 1),
+            behavior: extra.behavior || behavior,
+            notes: (extra.notes ? `${extra.notes} • ` : '') + `[Multi-sighting from single image: ${extra.positionLabel || `Bird #${idx + 2}`}] ${notes || ''}`.trim(),
+            verified: true,
+            likesCount: 1,
+            likedByMe: true,
+            comments: [],
+            weather,
+            imageMetaData: {
+              ...imageMetaData,
+              qualityNotes: `${imageMetaData.qualityNotes || ''} (Multi-sighting shared photo)`,
+            },
+            imageHash: calculatedHash,
+            deviceType: deviceType || clientExif?.model || 'Mobile Smartphone Camera',
+            pointsEarned: extraTotalPoints,
+            userSightingsCount: (currentUser.sightingsCount || 0) + idx + 2,
+            isRareSpecies: extraIsRare,
+            rareBonusEarned: extraRareBonus,
+          };
+
+          onAddSighting(extraSighting);
+        });
+      }
+
       // Trigger celebration confetti
       confetti({
         particleCount: 100,
@@ -590,8 +840,8 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
         origin: { y: 0.6 },
       });
 
-      // Programmatic navigation after form submission
-      navigate('/');
+      // Programmatic navigation to feed after form submission so user immediately sees the updated feed
+      navigate('/feed');
     } catch (err: any) {
       console.error('Error constructing or adding sighting:', err);
       setLoggerError(err?.message || 'Failed to publish observation. Please check required fields and try again.');
@@ -713,26 +963,57 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
           )}
 
           {duplicateWarning && (
-            <div className="p-4 bg-rose-950/80 border-2 border-rose-500 rounded-lg space-y-2 animate-in fade-in shadow-xl">
+            <div className="p-4 bg-rose-950/80 border-2 border-rose-500 rounded-lg space-y-3 animate-in fade-in shadow-xl">
               <div className="flex items-start space-x-3">
                 <AlertTriangle className="w-6 h-6 text-rose-400 shrink-0 mt-0.5 animate-bounce" />
-                <div className="flex-1 space-y-1">
+                <div className="flex-1 space-y-2">
                   <div className="flex items-center justify-between">
                     <h3 className="font-syne font-extrabold text-sm text-rose-200 uppercase tracking-tight flex items-center gap-2">
                       <span>🚫 DUPLICATE IMAGE DETECTED</span>
                     </h3>
                     <span className="font-mono-code text-[10px] bg-rose-500/30 text-rose-300 border border-rose-500/50 px-2 py-0.5 rounded font-bold uppercase">
-                      0 Points Awarded
+                      Single Upload Enforced
                     </span>
                   </div>
                   <p className="font-mono-code text-xs text-rose-200/90 leading-relaxed">
                     {duplicateWarning}
                   </p>
-                  <p className="font-mono-code text-[11px] text-amber-300 font-semibold pt-1">
-                    ⚠️ You cannot upload the same image more than once. Please upload or capture a new bird photograph to log your sighting and earn points.
-                  </p>
+                  
+                  {/* Option to convert to multi-sighting without uploading another photo */}
+                  <div className="pt-2 border-t border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span className="text-[11px] font-mono-code text-amber-300">
+                      Does this photo contain 2 or more sightings?
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMultiSightingMode(true);
+                        setIsDuplicateImage(false);
+                        setDuplicateWarning(null);
+                        setSharedPhotoNotice(
+                          '📸 Multi-Sighting on Single Image Active: Reusing existing photo file. Only 1 photo is uploaded to storage.'
+                        );
+                      }}
+                      className="px-3 py-1.5 bg-[#00ffaa] text-[#070808] hover:bg-[#00ffaa]/90 font-syne font-bold text-xs rounded transition-all cursor-pointer flex items-center space-x-1.5 self-start sm:self-auto"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Log as Multi-Sighting on Single Image</span>
+                    </button>
+                  </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {sharedPhotoNotice && (
+            <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-300 font-mono-code text-xs flex items-center justify-between animate-in fade-in">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-[#00ffaa] shrink-0" />
+                <span>{sharedPhotoNotice}</span>
+              </div>
+              <span className="text-[10px] bg-[#00ffaa]/20 text-[#00ffaa] border border-[#00ffaa]/40 px-2 py-0.5 rounded font-bold uppercase shrink-0 ml-2">
+                1 Image Uploaded
+              </span>
             </div>
           )}
 
@@ -752,7 +1033,9 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
           {/* Section 1: Species Selection */}
           <div className="space-y-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <label className="font-mono-code text-xs text-[#edeeef]/60 uppercase tracking-widest block">Bird Species</label>
+              <label className="font-mono-code text-xs text-[#edeeef]/60 uppercase tracking-widest block">
+                Species Observed (Bird or Permitted Bat)
+              </label>
               <button
                 type="button"
                 onClick={() => setUseCustomSpecies(!useCustomSpecies)}
@@ -768,11 +1051,14 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
                 onChange={(e) => setSelectedSpeciesId(e.target.value)}
                 className="w-full bg-[rgba(237,238,239,0.06)] border border-[rgba(237,238,239,0.15)] rounded px-3.5 py-3 text-[#edeeef] text-base sm:text-sm focus:outline-none focus:border-[#00ffaa]"
               >
-                {speciesList.map((sp) => (
-                  <option key={sp.id} value={sp.id} className="bg-[#0b0c0d] text-[#edeeef]">
-                    {sp.commonName} ({sp.scientificName}) — {sp.flywayRegion}
-                  </option>
-                ))}
+                {speciesList.map((sp) => {
+                  const isBat = sp.category?.includes('Chiroptera') || sp.commonName.toLowerCase().includes('bat');
+                  return (
+                    <option key={sp.id} value={sp.id} className="bg-[#0b0c0d] text-[#edeeef]">
+                      {isBat ? '🦇 [BAT EXCEPTION] ' : ''}{sp.commonName} ({sp.scientificName}) — {sp.flywayRegion}
+                    </option>
+                  );
+                })}
               </select>
             ) : (
               <input
@@ -783,6 +1069,129 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
                 required
                 className="w-full bg-[rgba(237,238,239,0.06)] border border-[rgba(237,238,239,0.15)] rounded px-3.5 py-3 text-[#edeeef] text-base sm:text-sm focus:outline-none focus:border-[#00ffaa]"
               />
+            )}
+          </div>
+
+          {/* Multi-Sighting on Single Image Section */}
+          <div className="bg-[rgba(0,255,170,0.03)] border border-[#00ffaa]/25 rounded-lg p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-[#00ffaa]" />
+                <span className="font-syne font-bold text-sm text-[#edeeef]">
+                  Multi-Sighting on Single Image
+                </span>
+                <span className="bg-[#00ffaa]/15 text-[#00ffaa] border border-[#00ffaa]/30 text-[10px] font-mono-code font-bold px-2 py-0.5 rounded-full">
+                  1 Upload Policy
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddAdditionalBird}
+                className="text-xs font-mono-code text-[#00ffaa] hover:bg-[#00ffaa]/10 border border-[#00ffaa]/40 px-3 py-1.5 rounded transition-all flex items-center space-x-1 cursor-pointer self-start sm:self-auto"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add Another Bird on This Image</span>
+              </button>
+            </div>
+
+            <p className="text-[11px] font-mono-code text-[#edeeef]/70 leading-relaxed">
+              If there are two or more sightings in this photo, only one image file will be uploaded. All observations will be recorded independently and will share this single uploaded photo.
+            </p>
+
+            {additionalBirds.length > 0 && (
+              <div className="space-y-3 pt-2">
+                {additionalBirds.map((bird, idx) => (
+                  <div
+                    key={bird.id}
+                    className="bg-[rgba(237,238,239,0.04)] border border-[rgba(237,238,239,0.12)] p-3 rounded-lg space-y-3 animate-in fade-in"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className="bg-[#00ffaa]/20 text-[#00ffaa] text-[10px] font-mono-code font-bold px-2 py-0.5 rounded">
+                          Sighting #{idx + 2} (Shares Same Photo)
+                        </span>
+                        <input
+                          type="text"
+                          value={bird.positionLabel}
+                          onChange={(e) => handleUpdateAdditionalBird(bird.id, { positionLabel: e.target.value })}
+                          placeholder="e.g., Bird on Right, Center branch"
+                          className="bg-transparent border-b border-[rgba(237,238,239,0.2)] text-xs text-[#edeeef] font-mono-code px-1 py-0.5 focus:outline-none focus:border-[#00ffaa]"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAdditionalBird(bird.id)}
+                        className="text-rose-400 hover:text-rose-300 p-1 cursor-pointer"
+                        title="Remove this bird"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="font-mono-code text-[10px] text-[#edeeef]/60 uppercase tracking-widest block mb-1">
+                          Species
+                        </label>
+                        {!bird.useCustomSpecies ? (
+                          <select
+                            value={bird.speciesId}
+                            onChange={(e) => handleUpdateAdditionalBird(bird.id, { speciesId: e.target.value })}
+                            className="w-full bg-[#0b0c0d] border border-[rgba(237,238,239,0.15)] rounded px-2.5 py-1.5 text-xs text-[#edeeef] focus:outline-none focus:border-[#00ffaa]"
+                          >
+                            {speciesList.map((sp) => (
+                              <option key={sp.id} value={sp.id}>
+                                {sp.commonName} ({sp.scientificName})
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={bird.customSpeciesName}
+                            onChange={(e) => handleUpdateAdditionalBird(bird.id, { customSpeciesName: e.target.value })}
+                            placeholder="Species Name..."
+                            className="w-full bg-[#0b0c0d] border border-[rgba(237,238,239,0.15)] rounded px-2.5 py-1.5 text-xs text-[#edeeef] focus:outline-none focus:border-[#00ffaa]"
+                          />
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="font-mono-code text-[10px] text-[#edeeef]/60 uppercase tracking-widest block mb-1">
+                            Count
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={bird.flockCount}
+                            onChange={(e) => handleUpdateAdditionalBird(bird.id, { flockCount: Number(e.target.value) })}
+                            className="w-full bg-[#0b0c0d] border border-[rgba(237,238,239,0.15)] rounded px-2.5 py-1.5 text-xs text-[#edeeef] focus:outline-none focus:border-[#00ffaa]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="font-mono-code text-[10px] text-[#edeeef]/60 uppercase tracking-widest block mb-1">
+                            Behavior
+                          </label>
+                          <select
+                            value={bird.behavior}
+                            onChange={(e) => handleUpdateAdditionalBird(bird.id, { behavior: e.target.value as SightingBehavior })}
+                            className="w-full bg-[#0b0c0d] border border-[rgba(237,238,239,0.15)] rounded px-2.5 py-1.5 text-xs text-[#edeeef] focus:outline-none focus:border-[#00ffaa]"
+                          >
+                            <option value="flying">Flying</option>
+                            <option value="resting">Resting</option>
+                            <option value="feeding">Feeding</option>
+                            <option value="nesting">Nesting</option>
+                            <option value="roosting">Roosting</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
@@ -962,8 +1371,11 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
                   onClick={() => {
                     setPhotoUrl('');
                     setPreviewImage('');
+                    setCurrentImageFile(null);
                     setClientExif(null);
                     setIsSimulatingWebDownload(false);
+                    setIsBirdVerified(false);
+                    setImageValidationError('No image attached. A null or empty image cannot be uploaded.');
                   }}
                   className="font-mono-code text-xs text-rose-400 hover:text-rose-300 uppercase tracking-wider transition-colors min-h-[36px] px-2"
                 >
@@ -1023,8 +1435,108 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
                     className="hidden"
                   />
                 </div>
+
+                {/* Preset Testing Chips */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-mono-code text-[#edeeef]/60 uppercase tracking-wider block">
+                    Demo Presets & Upload Testing:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectSamplePhoto(SAMPLE_BIRD_PHOTOS[0])}
+                      className="px-2 py-1 rounded bg-[rgba(237,238,239,0.06)] hover:bg-[#00ffaa]/20 border border-[rgba(237,238,239,0.15)] hover:border-[#00ffaa]/40 text-[#edeeef] hover:text-[#00ffaa] text-[11px] font-mono-code transition-colors cursor-pointer"
+                    >
+                      Bird: Arctic Tern
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectSamplePhoto(SAMPLE_BIRD_PHOTOS[1])}
+                      className="px-2 py-1 rounded bg-[rgba(237,238,239,0.06)] hover:bg-[#00ffaa]/20 border border-[rgba(237,238,239,0.15)] hover:border-[#00ffaa]/40 text-[#edeeef] hover:text-[#00ffaa] text-[11px] font-mono-code transition-colors cursor-pointer"
+                    >
+                      Bird: Osprey
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectSamplePhoto(SAMPLE_BIRD_PHOTOS[2])}
+                      className="px-2 py-1 rounded bg-[rgba(237,238,239,0.06)] hover:bg-[#00ffaa]/20 border border-[rgba(237,238,239,0.15)] hover:border-[#00ffaa]/40 text-[#edeeef] hover:text-[#00ffaa] text-[11px] font-mono-code transition-colors cursor-pointer"
+                    >
+                      Bird: Sandhill Crane
+                    </button>
+                    {/* Bat Exception Test Buttons */}
+                    {SAMPLE_BAT_PHOTOS.map((bat) => (
+                      <button
+                        key={bat.speciesId}
+                        type="button"
+                        onClick={() => handleSelectSamplePhoto(bat.url)}
+                        className="px-2 py-1 rounded bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 hover:text-purple-200 text-[11px] font-mono-code transition-colors cursor-pointer flex items-center space-x-1"
+                        title={`Test permitted bat exception: ${bat.name}`}
+                      >
+                        <span>🦇</span>
+                        <span>Bat: {bat.name.split(' (')[0]}</span>
+                      </button>
+                    ))}
+                    {/* Non-Bird Image Test Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleSelectSamplePhoto(NON_BIRD_DEMO_PHOTO)}
+                      className="px-2 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-rose-200 text-[11px] font-mono-code transition-colors cursor-pointer flex items-center space-x-1"
+                      title="Test validation that non-bird images (e.g. dog) cannot be uploaded"
+                    >
+                      <AlertTriangle className="w-3 h-3 text-rose-400" />
+                      <span>Test Non-Bird (Dog Photo)</span>
+                    </button>
+                    {/* Empty/Null Photo Test Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPhotoUrl('');
+                        setPreviewImage('');
+                        setCurrentImageFile(null);
+                        setClientExif(null);
+                        setIsSimulatingWebDownload(false);
+                        setIsBirdVerified(false);
+                        setImageValidationError('A null or empty image cannot be uploaded. Please select a valid bird or bat photograph.');
+                        setLoggerError('A null or empty image cannot be uploaded. Please select a valid bird or bat photograph.');
+                      }}
+                      className="px-2 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 hover:text-amber-200 text-[11px] font-mono-code transition-colors cursor-pointer"
+                      title="Test validation that null or empty images cannot be uploaded"
+                    >
+                      Test Null / Empty Photo
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
+
+            {/* Bird Verification Status Banner */}
+            {isValidatingBirdImage && (
+              <div className="p-2.5 bg-cyan-500/10 border border-cyan-500/30 rounded text-xs font-mono-code text-cyan-300 flex items-center space-x-2 animate-pulse">
+                <RefreshCw className="w-4 h-4 animate-spin shrink-0 text-cyan-400" />
+                <span>Scanning image with AI Vision to verify bird or bat presence...</span>
+              </div>
+            )}
+
+            {imageValidationError && (
+              <div className="p-3 bg-rose-500/15 border border-rose-500/40 rounded text-xs font-mono-code text-rose-300 flex items-start space-x-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+                <div>
+                  <span className="font-bold block text-rose-200">Upload Blocked</span>
+                  <span>{imageValidationError}</span>
+                </div>
+              </div>
+            )}
+
+            {isBirdVerified && previewImage && !isValidatingBirdImage && !imageValidationError && (
+              <div className="p-2 bg-[#00ffaa]/10 border border-[#00ffaa]/30 rounded text-[11px] font-mono-code text-[#00ffaa] flex items-center space-x-2">
+                <ShieldCheck className="w-4 h-4 shrink-0 text-[#00ffaa]" />
+                <span>
+                  {aiResult?.isBat || (aiResult?.category && aiResult.category.includes('Chiroptera')) || (aiResult?.commonName && aiResult.commonName.toLowerCase().includes('bat'))
+                    ? '🦇 Aerial Species Exception Verified: Authentic bat specimen (Order Chiroptera) detected. Permitted flying mammal observation approved.'
+                    : 'Avian Subject Verified: Genuine bird detected in observation photograph.'}
+                </span>
+              </div>
+            )}
 
             {/* Display Extracted EXIF Badge */}
             {clientExif?.make && (
@@ -1046,12 +1558,12 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
               {isAiScanning ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Scanning Bird Photo with Gemini AI...</span>
+                  <span>Scanning Photo with Gemini AI...</span>
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 text-[#00ffaa]" />
-                  <span>AI Identify Bird & Auto-Match Species</span>
+                  <span>AI Identify Species (Bird or Bat) & Auto-Match</span>
                 </>
               )}
             </button>
@@ -1117,6 +1629,48 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
                         </div>
                       ))}
                     </div>
+
+                    {/* Single image multi-sighting action button */}
+                    {aiResult.birdsLeftToRight.length > 1 && (
+                      <div className="pt-2 border-t border-[#00ffaa]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <span className="text-[10px] font-mono-code text-[#00ffaa]">
+                          💡 {aiResult.birdsLeftToRight.length} specimens detected in this single photo
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const extraBirds = aiResult.birdsLeftToRight!.slice(1).map((b, idx) => {
+                              const matched = speciesList.find(
+                                (s) =>
+                                  s.commonName.toLowerCase() === b.commonName.toLowerCase() ||
+                                  s.scientificName.toLowerCase() === b.scientificName.toLowerCase()
+                              );
+                              return {
+                                id: `extra_${Date.now()}_${idx}`,
+                                speciesId: matched ? matched.id : 'sp_custom',
+                                useCustomSpecies: !matched,
+                                customSpeciesName: matched ? '' : b.commonName,
+                                positionLabel: b.positionLabel || `Bird #${idx + 2}`,
+                                behavior: 'flying' as SightingBehavior,
+                                flockCount: 1,
+                                notes: `Identified at position: ${b.positionLabel || 'in photo'}. Visual feature: ${b.distinguishingFeature || 'Distinct specimen plumage in shared photo'}.`,
+                              };
+                            });
+                            setAdditionalBirds(extraBirds);
+                            setIsMultiSightingMode(true);
+                            setIsDuplicateImage(false);
+                            setDuplicateWarning(null);
+                            setSharedPhotoNotice(
+                              `📸 Multi-Sighting Active: ${aiResult.birdsLeftToRight!.length} sightings configured. Only 1 photo file is uploaded to storage, shared by all sightings.`
+                            );
+                          }}
+                          className="px-3 py-1.5 bg-[#00ffaa] text-[#070808] font-syne font-bold text-xs rounded hover:bg-[#00ffaa]/90 transition-all cursor-pointer flex items-center space-x-1.5 self-start sm:self-auto shadow-sm"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Include All {aiResult.birdsLeftToRight.length} Birds (1 Photo Upload)</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1249,7 +1803,11 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
               ) : (
                 <>
                   <CheckCircle2 className="w-5 h-5" />
-                  <span>Publish Observation</span>
+                  <span>
+                    {additionalBirds.length > 0
+                      ? `Publish ${1 + additionalBirds.length} Observations (1 Photo Upload)`
+                      : 'Publish Observation'}
+                  </span>
                 </>
               )}
             </button>

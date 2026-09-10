@@ -216,6 +216,19 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
   }, [isPickerMode, selectedCoordinates]);
 
+  // Smoothly Fly Map to Focused Coordinates (e.g. from Vicinity Alert click)
+  useEffect(() => {
+    if (selectedCoordinates && mapInstanceRef.current) {
+      try {
+        mapInstanceRef.current.flyTo([selectedCoordinates.lat, selectedCoordinates.lng], 11, {
+          duration: 1.2,
+        });
+      } catch (err) {
+        console.warn('Map flyTo notice:', err);
+      }
+    }
+  }, [selectedCoordinates?.lat, selectedCoordinates?.lng]);
+
   // Playback Animation Timer
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -311,7 +324,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           const sightingIcon = L.divIcon({
             className: 'sighting-pin',
             html: `
-              <div class="w-7 h-7 rounded-full bg-emerald-500 border-2 border-slate-950 flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform pulsing-sighting-marker">
+              <div class="w-7 h-7 rounded-full bg-emerald-500 border-2 border-slate-950 flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform">
                 <span class="text-xs">🦅</span>
               </div>
             `,

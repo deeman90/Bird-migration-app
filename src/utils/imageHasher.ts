@@ -65,23 +65,31 @@ export function getCanonicalPhotoUrl(url: string): string {
 
 export interface DuplicateCheckResult {
   isDuplicate: boolean;
+  isMultiSightingCandidate?: boolean;
   message?: string;
   matchedSightingId?: string;
   matchedSpeciesName?: string;
+  existingPhotoUrl?: string;
+  existingImageHash?: string;
 }
 
 /**
  * Checks if an image (by File, Data URL, or photo URL) has ALREADY been uploaded
  * by the user or exists in previous sightings.
+ * If there are two or more sightings on one image, allows reusing the single uploaded photo.
  */
 export async function checkDuplicateImage({
   imageInput,
   currentUserId,
   existingSightings = [],
+  newSpeciesName,
+  allowMultiSighting = false,
 }: {
   imageInput: File | Blob | string;
   currentUserId: string;
   existingSightings?: Sighting[];
+  newSpeciesName?: string;
+  allowMultiSighting?: boolean;
 }): Promise<DuplicateCheckResult> {
   try {
     // 1. Compute hash of incoming image
@@ -100,7 +108,7 @@ export async function checkDuplicateImage({
         canonicalInputUrl.includes('photo-1579899338'));
 
     if (isBuiltInSamplePhoto) {
-      return { isDuplicate: false };
+      return { isDuplicate: false, isMultiSightingCandidate: false };
     }
 
     // 2. Check in-memory existing sightings for the SAME user
@@ -124,13 +132,34 @@ export async function checkDuplicateImage({
       );
 
       if (hashMatch || urlMatch) {
+        const isDifferentSpecies = Boolean(
+          newSpeciesName &&
+          sighting.speciesName &&
+          newSpeciesName.trim().toLowerCase() !== sighting.speciesName.trim().toLowerCase()
+        );
+
+        // If multi-sighting mode is enabled OR user is logging a different species on this same image:
+        // Do NOT upload a new photo; reuse the existing uploaded photo!
+        if (allowMultiSighting || isDifferentSpecies) {
+          return {
+            isDuplicate: false,
+            isMultiSightingCandidate: true,
+            message: `📸 Multi-Sighting on Single Image: Reusing existing photo upload from "${sighting.speciesName || 'First Sighting'}". Only one photo is uploaded to storage.`,
+            matchedSightingId: sighting.id,
+            matchedSpeciesName: sighting.speciesName,
+            existingPhotoUrl: sighting.photoUrl,
+            existingImageHash: existingHash || newHash,
+          };
+        }
+
         return {
           isDuplicate: true,
-          message: `Duplicate Image Detected: You have already uploaded this exact same image in a previous sighting log (${
-            sighting.speciesName || 'Bird Sighting'
-          }). Duplicate uploads are prohibited and no points will be recorded.`,
+          isMultiSightingCandidate: true,
+          message: `This image was already uploaded for "${sighting.speciesName || 'Bird Sighting'}". If this photo contains multiple birds, you can log them as a multi-sighting on this single image without uploading another photo.`,
           matchedSightingId: sighting.id,
           matchedSpeciesName: sighting.speciesName,
+          existingPhotoUrl: sighting.photoUrl,
+          existingImageHash: existingHash || newHash,
         };
       }
     }
@@ -155,13 +184,32 @@ export async function checkDuplicateImage({
             canonicalInputUrl.length > 10;
 
           if (hashMatch || urlMatch) {
+            const isDifferentSpecies = Boolean(
+              newSpeciesName &&
+              row.bird_species &&
+              newSpeciesName.trim().toLowerCase() !== row.bird_species.trim().toLowerCase()
+            );
+
+            if (allowMultiSighting || isDifferentSpecies) {
+              return {
+                isDuplicate: false,
+                isMultiSightingCandidate: true,
+                message: `📸 Multi-Sighting on Single Image: Reusing existing photo upload from "${row.bird_species || 'First Sighting'}". Only one photo is uploaded to storage.`,
+                matchedSightingId: String(row.id),
+                matchedSpeciesName: row.bird_species,
+                existingPhotoUrl: row.bird_image,
+                existingImageHash: dbHash || newHash,
+              };
+            }
+
             return {
               isDuplicate: true,
-              message: `Duplicate Image Detected: You have already uploaded this exact same image in a previous sighting log (${
-                row.bird_species || 'Bird Sighting'
-              }). Duplicate uploads are prohibited and no points will be recorded.`,
+              isMultiSightingCandidate: true,
+              message: `This image was already uploaded for "${row.bird_species || 'Bird Sighting'}". If this photo contains multiple birds, you can log them as a multi-sighting on this single image without uploading another photo.`,
               matchedSightingId: String(row.id),
               matchedSpeciesName: row.bird_species,
+              existingPhotoUrl: row.bird_image,
+              existingImageHash: dbHash || newHash,
             };
           }
         }
@@ -170,9 +218,9 @@ export async function checkDuplicateImage({
       console.warn('Database duplicate check warning:', dbErr);
     }
 
-    return { isDuplicate: false };
+    return { isDuplicate: false, isMultiSightingCandidate: false };
   } catch (err) {
     console.error('Error checking duplicate image:', err);
-    return { isDuplicate: false };
+    return { isDuplicate: false, isMultiSightingCandidate: false };
   }
 }

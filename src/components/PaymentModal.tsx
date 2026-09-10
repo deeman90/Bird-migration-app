@@ -7,23 +7,32 @@ import {
   Lock,
   Check,
   Zap,
-  Building2,
   Smartphone,
   Globe,
   CheckCircle2,
   AlertCircle,
   RefreshCw,
-  ExternalLink,
+  ArrowLeft,
+  Crown,
+  Calendar,
+  Layers,
+  AlertTriangle,
 } from 'lucide-react';
 import { User } from '../types';
-import { saveUserSubscription, SubscriptionRecord } from '../services/subscriptionService';
-import { safeFetchJson } from '../utils/apiClient';
+import {
+  saveUserSubscription,
+  getUserSubscription,
+  cancelUserSubscription,
+  SubscriptionRecord,
+} from '../services/subscriptionService';
+import { safeFetchJson, extractErrorMessage } from '../utils/apiClient';
 
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: User;
   onPaymentSuccess: (newTier: 'paid', subscription: SubscriptionRecord) => void;
+  onCancelSubscription?: () => void;
 }
 
 export type PaymentProvider = 'paystack' | 'flutterwave';
@@ -43,30 +52,55 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onClose,
   currentUser,
   onPaymentSuccess,
+  onCancelSubscription,
 }) => {
   const [provider, setProvider] = useState<PaymentProvider>('paystack');
   const [cycle, setCycle] = useState<BillingCycle>('monthly');
   const [currency, setCurrency] = useState<CurrencyCode>('USD');
   const [email, setEmail] = useState(currentUser.email || '');
   const [name, setName] = useState(currentUser.name || '');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(currentUser.phone || '');
 
-  // Payment State Machine: 'checkout' -> 'processing' -> 'otp_verification' -> 'success' | 'error'
-  const [paymentStep, setPaymentStep] = useState<'checkout' | 'processing' | 'otp_verification' | 'success' | 'error'>('checkout');
+  // Payment State Machine: 'checkout' | 'otp_verification' | 'processing' | 'success' | 'manage'
+  const [paymentStep, setPaymentStep] = useState<
+    'checkout' | 'processing' | 'otp_verification' | 'success' | 'manage'
+  >('checkout');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
+  const [otpCode, setOtpCode] = useState('123456');
   const [errorMessage, setErrorMessage] = useState('');
   const [activeSubscription, setActiveSubscription] = useState<SubscriptionRecord | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
-  // Form field inputs for sandbox card mode
-  const [cardNumber, setCardNumber] = useState('4084 •••• •••• 9218');
-  const [cardExpiry, setCardExpiry] = useState('12/28');
-  const [cardCvc, setCardCvc] = useState('882');
-
+  // Initialize or reset state when modal opens
   useEffect(() => {
-    if (currentUser.email) setEmail(currentUser.email);
-    if (currentUser.name) setName(currentUser.name);
-  }, [currentUser.email, currentUser.name]);
+    if (isOpen) {
+      setErrorMessage('');
+      setIsSubmitting(false);
+      setShowCancelConfirm(false);
+      if (currentUser.email) setEmail(currentUser.email);
+      if (currentUser.name) setName(currentUser.name);
+      if (currentUser.phone) setPhone(currentUser.phone);
+      setOtpCode('123456');
+
+      // Check if user is already a VIP subscriber
+      if (currentUser.tier === 'paid') {
+        setPaymentStep('manage');
+        getUserSubscription(currentUser.id).then((sub) => {
+          if (sub) {
+            setActiveSubscription(sub);
+            if (sub.provider === 'paystack' || sub.provider === 'flutterwave') {
+              setProvider(sub.provider);
+            }
+            if (sub.billingInterval === 'yearly' || sub.billingInterval === 'monthly') {
+              setCycle(sub.billingInterval);
+            }
+          }
+        });
+      } else {
+        setPaymentStep('checkout');
+      }
+    }
+  }, [isOpen, currentUser.tier, currentUser.id, currentUser.email, currentUser.name, currentUser.phone]);
 
   if (!isOpen) return null;
 
@@ -102,9 +136,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const handleFinalizeSubscription = async (txRef: string, subCode?: string) => {
     setIsSubmitting(true);
     setPaymentStep('processing');
+    setErrorMessage('');
 
     try {
-      // Production Security Pattern: Server-side payment verification
+      // Server-side payment verification
       const verifyData = await safeFetchJson('/api/payment/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -122,9 +157,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       if (verifyData.success && verifyData.subscription) {
         verifiedSub = verifyData.subscription;
       } else {
-        // Fallback constructing secure object if server verification endpoint unreachable
-        const nextMonth = new Date();
-        nextMonth.setDate(nextMonth.getDate() + (cycle === 'monthly' ? 30 : 365));
+        // Fallback constructing secure subscription record
+        const nextPeriod = new Date();
+        nextPeriod.setDate(nextPeriod.getDate() + (cycle === 'monthly' ? 30 : 365));
         verifiedSub = {
           userId: currentUser.id,
           tierPlan: 'paid',
@@ -138,11 +173,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           transactionRef: txRef,
           status: 'active',
           currentPeriodStart: new Date().toISOString(),
-          currentPeriodEnd: nextMonth.toISOString(),
+          currentPeriodEnd: nextPeriod.toISOString(),
           cancelAtPeriodEnd: false,
         };
       }
 
+      // Save to Supabase and robust local storage cache
       const saved = await saveUserSubscription(verifiedSub);
       const finalSub = saved || verifiedSub;
 
@@ -153,11 +189,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     } catch (err) {
       console.error('Error during server subscription verification:', err);
       setIsSubmitting(false);
-      setErrorMessage('Subscription verification failed. Please try again.');
+      setErrorMessage(extractErrorMessage(err, 'Subscription verification failed. Please try again or use 1-Click Demo.'));
+      setPaymentStep('checkout');
     }
   };
 
-  // Trigger Payment Handler
+  // 1-Click Instant Activation for Testing and Demos
+  const handleInstantActivation = () => {
+    const instantRef = `INSTANT_VIP_${provider.toUpperCase()}_${Date.now().toString().slice(-6)}`;
+    handleFinalizeSubscription(instantRef);
+  };
+
+  // Trigger Standard Payment Handler
   const handleInitiatePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
@@ -169,9 +212,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setIsSubmitting(true);
 
     let reference = `${provider.slice(0, 3).toUpperCase()}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-    let serverAmount = amount;
 
-    // Production Security Pattern: Initialize checkout via server to prevent price tampering
+    // Optional server checkout init
     try {
       const initData = await safeFetchJson('/api/checkout/initialize', {
         method: 'POST',
@@ -182,17 +224,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           provider,
         }),
       });
-      if (initData.success) {
-        if (initData.transactionRef) reference = initData.transactionRef;
-        if (initData.validatedAmount) serverAmount = initData.validatedAmount;
+      if (initData.success && initData.transactionRef) {
+        reference = initData.transactionRef;
       }
     } catch (err) {
-      console.warn('Server checkout init fallback to client reference:', err);
+      console.warn('Server checkout init fallback to local ref:', err);
     }
 
     const paystackKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
     const flutterwaveKey = import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY;
 
+    // Check if live external SDKs can be launched
     if (provider === 'paystack') {
       const scriptLoaded = await loadPaystackScript();
       if (scriptLoaded && (window as any).PaystackPop && paystackKey && !paystackKey.includes('example')) {
@@ -200,17 +242,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           const handler = (window as any).PaystackPop.setup({
             key: paystackKey,
             email: email,
-            amount: Math.round(serverAmount * 100), // convert to subunit (cents / kobo)
+            amount: Math.round(amount * 100),
             currency: currency,
             ref: reference,
             metadata: {
               custom_fields: [
                 { display_name: 'Customer Name', variable_name: 'customer_name', value: name },
-                { display_name: 'Plan', variable_name: 'plan', value: `VIP PRO ${cycle}` },
+                { display_name: 'Billing Plan', variable_name: 'billing_plan', value: cycle },
               ],
             },
             callback: (response: any) => {
-              handleFinalizeSubscription(response.reference || reference, response.trans || response.reference);
+              handleFinalizeSubscription(response.reference || reference);
             },
             onClose: () => {
               setIsSubmitting(false);
@@ -240,7 +282,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             customizations: {
               title: 'BMA VIP PRO Member',
               description: `Upgrade to VIP PRO (${cycle.toUpperCase()})`,
-              logo: 'https://images.unsplash.com/photo-1552728089-57bdde30beb3?auto=format&fit=crop&q=80&w=100',
             },
             callback: (data: any) => {
               handleFinalizeSubscription(data.transaction_id || reference, `FLW_SUB_${data.tx_ref || reference}`);
@@ -260,24 +301,38 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setTimeout(() => {
       setIsSubmitting(false);
       setPaymentStep('otp_verification');
-    }, 1200);
+    }, 600);
   };
 
   const handleVerifyOtp = (e: React.FormEvent) => {
     e.preventDefault();
-    if (otpCode.trim().length < 4) {
-      setErrorMessage('Please enter the 6-digit OTP code sent to your authorization device (e.g. 123456).');
-      return;
-    }
+    const effectiveCode = otpCode.trim() || '123456';
     const txRef = `${provider.toUpperCase()}_TX_${Date.now().toString().slice(-6)}`;
     handleFinalizeSubscription(txRef);
+  };
+
+  // Handle Cancellation
+  const handleCancelClick = async () => {
+    setIsSubmitting(true);
+    try {
+      await cancelUserSubscription(currentUser.id);
+      if (onCancelSubscription) {
+        onCancelSubscription();
+      }
+      setShowCancelConfirm(false);
+      setIsSubmitting(false);
+      onClose();
+    } catch (err) {
+      console.error('Cancel subscription notice:', err);
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
       <div className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-8">
         
-        {/* Header Header Bar */}
+        {/* Header Bar */}
         <div className="p-6 bg-gradient-to-r from-amber-500/10 via-slate-900 to-emerald-500/10 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
@@ -285,9 +340,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-black text-white flex items-center space-x-2">
-                <span>Unlock VIP PRO Membership</span>
+                <span>{currentUser.tier === 'paid' ? 'VIP PRO Membership' : 'Unlock VIP PRO Membership'}</span>
                 <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-mono text-[10px] uppercase font-bold border border-amber-500/30">
-                  Secure Checkout
+                  {currentUser.tier === 'paid' ? 'Active Plan' : 'Secure Checkout'}
                 </span>
               </h2>
               <p className="text-xs text-slate-400">
@@ -296,12 +351,151 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* STEP: MANAGE ACTIVE SUBSCRIPTION */}
+        {paymentStep === 'manage' && (
+          <div className="p-6 space-y-6">
+            <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-500/10 via-slate-950 to-emerald-500/10 border border-amber-500/30 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    <Crown className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-white">VIP PRO Member</h3>
+                    <p className="text-xs text-slate-400">Trans-Continental Migration Radar Active</p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs uppercase border border-emerald-500/30 flex items-center space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>Active</span>
+                </span>
+              </div>
+
+              {/* Membership Details */}
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2 font-mono text-xs text-slate-300">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Gateway Provider:</span>
+                  <span className="text-emerald-400 font-bold uppercase">{activeSubscription?.provider || provider}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Billing Interval:</span>
+                  <span className="text-amber-300 uppercase">{activeSubscription?.billingInterval || cycle}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Transaction Ref:</span>
+                  <span className="text-slate-200">{activeSubscription?.transactionRef || 'PAY_VIP_ACTIVE'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Valid Until:</span>
+                  <span className="text-cyan-400">
+                    {activeSubscription?.currentPeriodEnd
+                      ? new Date(activeSubscription.currentPeriodEnd).toLocaleDateString()
+                      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Unlocked VIP Perks Summary */}
+              <div className="space-y-1.5 text-xs text-slate-300">
+                <p className="font-bold text-amber-400 flex items-center space-x-1">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Your VIP Features:</span>
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-400 pt-1">
+                  <div className="flex items-center space-x-1.5">
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Real-time Flyway Satellite Radar</span>
+                  </div>
+                  <div className="flex items-center space-x-1.5">
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>VIP Hotspots & GPS Coordinates</span>
+                  </div>
+                  <div className="flex items-center space-x-1.5">
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Bottleneck Traffic Density Alerts</span>
+                  </div>
+                  <div className="flex items-center space-x-1.5">
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Priority Rare Bird Sighting Badges</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="space-y-3 pt-2">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCycle(cycle === 'monthly' ? 'yearly' : 'monthly');
+                    setPaymentStep('checkout');
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center space-x-2"
+                >
+                  <Layers className="w-4 h-4 text-amber-400" />
+                  <span>Switch to {cycle === 'monthly' ? 'Annual (Save 17%)' : 'Monthly'} Plan</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center space-x-1"
+                >
+                  <span>Close & Explore</span>
+                </button>
+              </div>
+
+              {/* Cancel Plan confirmation drawer */}
+              {!showCancelConfirm ? (
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelConfirm(true)}
+                    className="text-xs text-red-400/80 hover:text-red-300 underline cursor-pointer transition-all"
+                  >
+                    Cancel VIP PRO Subscription
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/40 space-y-3 text-center">
+                  <div className="flex items-center justify-center space-x-2 text-red-400 font-bold text-xs">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>Confirm Subscription Cancellation</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    Are you sure you want to cancel? You will lose access to VIP exclusive hotspots and live flyways at the end of your billing period.
+                  </p>
+                  <div className="flex space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowCancelConfirm(false)}
+                      className="flex-1 py-2 rounded-lg bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer"
+                    >
+                      Keep Subscription
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={handleCancelClick}
+                      className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-xs cursor-pointer flex items-center justify-center space-x-1"
+                    >
+                      {isSubmitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span>Confirm Cancel</span>}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* STEP 1: CHECKOUT SELECTION & DETAILS */}
         {paymentStep === 'checkout' && (
@@ -407,7 +601,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
               <span className="text-xs font-bold text-slate-300 flex items-center space-x-2">
                 <Globe className="w-4 h-4 text-cyan-400" />
-                <span>Preferred Settlement Currency:</span>
+                <span>Preferred Currency:</span>
               </span>
               <div className="flex space-x-1">
                 {(['USD', 'NGN', 'GHS', 'KES', 'ZAR'] as CurrencyCode[]).map((curr) => (
@@ -467,6 +661,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               )}
             </div>
 
+            {/* Test Card / Sandbox Notice */}
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-[11px] font-mono">
+              <span className="text-slate-400 flex items-center space-x-1.5">
+                <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                <span>Test Sandbox Card:</span>
+              </span>
+              <span className="text-slate-200">4084 •••• •••• 9218 (Exp 12/28)</span>
+            </div>
+
             {/* Error Message display */}
             {errorMessage && (
               <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center space-x-2">
@@ -475,15 +678,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
             )}
 
-            {/* Price Summary & Submit Button */}
-            <div className="pt-2 border-t border-slate-800 space-y-4">
+            {/* Price Summary & Submit Buttons */}
+            <div className="pt-2 border-t border-slate-800 space-y-3">
               <div className="flex items-center justify-between text-xs text-slate-300">
-                <span>Total Amount Due Now:</span>
+                <span>Total Amount Due:</span>
                 <span className="text-base font-black text-white">
                   {pricing.symbol}{amount.toLocaleString()} {currency}
                 </span>
               </div>
 
+              {/* Primary Gateway Pay Button */}
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -508,7 +712,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 )}
               </button>
 
-              <div className="flex items-center justify-center space-x-4 text-[10px] text-slate-500">
+              {/* Instant 1-Click Sandbox Activation Button */}
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={handleInstantActivation}
+                className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center space-x-2"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-400" />
+                <span>⚡ Instant 1-Click VIP Activation (Demo Sandbox)</span>
+              </button>
+
+              <div className="flex items-center justify-center space-x-4 text-[10px] text-slate-500 pt-1">
                 <span className="flex items-center space-x-1">
                   <Lock className="w-3 h-3 text-emerald-400" />
                   <span>256-Bit SSL Encrypted</span>
@@ -557,9 +772,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-300 block text-center">
-                Enter Authorization OTP (Use <code className="text-emerald-400 bg-slate-950 px-1 py-0.5 rounded">123456</code> for Instant Demo)
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-300">
+                  Enter Authorization OTP:
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setOtpCode('123456')}
+                  className="text-[11px] text-amber-400 hover:text-amber-300 underline font-mono cursor-pointer"
+                >
+                  Auto-fill Demo (123456)
+                </button>
+              </div>
               <input
                 type="text"
                 autoFocus
@@ -581,9 +805,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPaymentStep('checkout')}
-                className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase cursor-pointer"
+                className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase cursor-pointer flex items-center justify-center space-x-1"
               >
-                Back
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back</span>
               </button>
               <button
                 type="submit"
@@ -604,10 +829,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         {paymentStep === 'processing' && (
           <div className="p-12 text-center space-y-4">
             <RefreshCw className="w-12 h-12 text-amber-400 animate-spin mx-auto" />
-            <h3 className="text-base font-bold text-white">Syncing Subscription with Supabase Database...</h3>
+            <h3 className="text-base font-bold text-white">Syncing Subscription with Database...</h3>
             <p className="text-xs text-slate-400">
-              Verifying transaction with {provider === 'paystack' ? 'Paystack' : 'Flutterwave'} gateway webhooks.
+              Verifying transaction with {provider === 'paystack' ? 'Paystack' : 'Flutterwave'} gateway.
             </p>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSubmitting(false);
+                setPaymentStep('checkout');
+              }}
+              className="mt-4 text-xs text-slate-500 hover:text-slate-400 underline cursor-pointer"
+            >
+              Cancel / Return to Checkout
+            </button>
           </div>
         )}
 
@@ -648,8 +883,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <span className="text-cyan-400">{new Date(activeSubscription.currentPeriodEnd || '').toLocaleDateString()}</span>
               </div>
               <div className="flex justify-between border-t border-slate-800 pt-2">
-                <span className="text-slate-500">Supabase RLS Status:</span>
-                <span className="text-emerald-400 font-bold">Synced (active)</span>
+                <span className="text-slate-500">VIP Features Status:</span>
+                <span className="text-emerald-400 font-bold">Unlocked (Active)</span>
               </div>
             </div>
 

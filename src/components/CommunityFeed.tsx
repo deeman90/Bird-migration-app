@@ -63,12 +63,15 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
   const isFreeUser = currentUser.tier === 'free';
   const effectiveUserId = sessionUserId || currentUser.id;
 
-  // Free users can view their own bird log sightings (memoized)
-  const accessibleSightings = useMemo(() => {
-    return isFreeUser
-      ? sightings.filter((s) => s.userId === effectiveUserId || s.userId === currentUser.id || Boolean(s.userName && currentUser?.name && s.userName.toLowerCase() === currentUser.name.toLowerCase()))
-      : sightings;
-  }, [isFreeUser, sightings, effectiveUserId, currentUser.id, currentUser.name]);
+  // Count user's own sightings for filter tab badge
+  const mySightingsCount = useMemo(() => {
+    return sightings.filter(
+      (s) =>
+        s.userId === effectiveUserId ||
+        s.userId === currentUser.id ||
+        Boolean(s.userName && currentUser?.name && s.userName.toLowerCase() === currentUser.name.toLowerCase())
+    ).length;
+  }, [sightings, effectiveUserId, currentUser.id, currentUser.name]);
 
   // Derive unique species and location regions for dropdown filters (memoized)
   const availableSpecies = useMemo(() => {
@@ -89,7 +92,14 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
 
   const filteredSightings = useMemo(() => {
     const sTerm = (searchTerm || '').toLowerCase();
-    return accessibleSightings.filter((s) => {
+    // Ensure newest sightings are always displayed first
+    const sorted = [...sightings].sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime() || 0;
+      const timeB = new Date(b.timestamp).getTime() || 0;
+      return timeB - timeA;
+    });
+
+    return sorted.filter((s) => {
       if (sTerm) {
         const matchesSearch =
           (s.speciesName || '').toLowerCase().includes(sTerm) ||
@@ -111,12 +121,18 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
       }
 
       if (filterType === 'verified') return s.verified;
-      if (filterType === 'mine') return s.userId === currentUser.id || Boolean(s.userName && currentUser?.name && s.userName.toLowerCase() === currentUser.name.toLowerCase());
+      if (filterType === 'mine') {
+        return (
+          s.userId === effectiveUserId ||
+          s.userId === currentUser.id ||
+          Boolean(s.userName && currentUser?.name && s.userName.toLowerCase() === currentUser.name.toLowerCase())
+        );
+      }
       if (filterType === 'hotspots') return s.isHotspotExclusive;
 
       return true;
     });
-  }, [accessibleSightings, searchTerm, selectedSpecies, selectedRegion, filterType, currentUser.id, currentUser.name]);
+  }, [sightings, searchTerm, selectedSpecies, selectedRegion, filterType, effectiveUserId, currentUser.id, currentUser.name]);
 
   const handleCommentSubmit = (sightingId: string, e: React.FormEvent) => {
     e.preventDefault();
@@ -133,24 +149,33 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
         <div>
           <div className="flex items-center space-x-2">
             <span className="font-mono-code text-[10px] text-[#00ffaa] uppercase tracking-widest block">Live Radar Stream</span>
-            {isFreeUser && (
-              <span className="bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[9px] font-mono-code px-2 py-0.5 rounded uppercase font-bold flex items-center space-x-1">
-                <Lock className="w-2.5 h-2.5" />
-                <span>Free Tier Limit</span>
-              </span>
-            )}
+            <span className="bg-[#00ffaa]/10 text-[#00ffaa] border border-[#00ffaa]/30 text-[9px] font-mono-code px-2 py-0.5 rounded uppercase font-bold flex items-center space-x-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00ffaa] animate-pulse inline-block" />
+              <span>Live Updates</span>
+            </span>
           </div>
           <h1 className="font-syne font-extrabold text-xl sm:text-2xl text-[#edeeef] tracking-tight mt-0.5">
-            {isFreeUser ? 'My Bird Sightings Log' : 'Community Observations'}
+            Community Observations Feed
           </h1>
           <p className="font-mono-code text-xs text-[#edeeef]/60 mt-1 uppercase tracking-wider">
-            {isFreeUser
-              ? `Viewing your logged observations (${accessibleSightings.length} total). Upgrade to PRO to view all global community sightings.`
-              : 'Real-time bird sightings posted by birdwatchers across global flyways.'}
+            Real-time bird sightings posted by observers across global flyways ({sightings.length} total observations).
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {/* Refresh Feed Button */}
+          {onRefreshSightings && (
+            <button
+              onClick={onRefreshSightings}
+              disabled={isRefreshingSightings}
+              className="min-h-[40px] px-3.5 py-2 rounded bg-[#121417] hover:bg-[#1a1d22] border border-[rgba(237,238,239,0.18)] text-[#00ffaa] font-mono-code text-xs font-semibold uppercase tracking-wider flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+              title="Refresh latest sightings from users"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingSightings ? 'animate-spin text-[#00ffaa]' : ''}`} />
+              <span className="hidden sm:inline">{isRefreshingSightings ? 'Updating...' : 'Refresh Feed'}</span>
+            </button>
+          )}
+
           {/* View Mode Toggle */}
           <div className="bg-[rgba(237,238,239,0.06)] border border-[rgba(237,238,239,0.12)] p-1 rounded-md flex items-center space-x-1">
             <button
@@ -160,7 +185,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
                   ? 'bg-[#00ffaa] text-[#0b0c0d] font-bold shadow-sm'
                   : 'text-[#edeeef]/70 hover:text-[#edeeef] hover:bg-[rgba(237,238,239,0.08)]'
               }`}
-              title="Switch to detailed database sightings table"
+              title="Switch to detailed sightings table"
             >
               <Table className="w-3.5 h-3.5" />
               <span>Table</span>
@@ -189,40 +214,10 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
         </div>
       </div>
 
-      {/* Free Tier Restriction Alert Banner */}
-      {isFreeUser && (
-        <div className="bg-amber-400/10 border border-amber-400/30 rounded p-4 text-[#edeeef] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-in fade-in">
-          <div className="flex items-start sm:items-center space-x-3">
-            <div className="w-9 h-9 rounded bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 shrink-0 mt-0.5 sm:mt-0">
-              <Lock className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="font-syne font-bold text-sm text-amber-300">Free Observer Access</span>
-                <span className="bg-amber-400/20 text-amber-300 text-[10px] font-mono-code px-1.5 py-0.5 rounded uppercase font-bold">Free Plan</span>
-              </div>
-              <p className="font-mono-code text-xs text-[#edeeef]/70 mt-0.5">
-                As a free user, you can view your own logged sightings only ({accessibleSightings.length} logged). Unlock full access to global community sightings from ornithologists worldwide!
-              </p>
-            </div>
-          </div>
-
-          {onUpgradeToPro && (
-            <button
-              onClick={onUpgradeToPro}
-              className="min-h-[40px] px-4 py-2 rounded bg-amber-400 hover:bg-amber-300 text-[#0b0c0d] font-syne font-extrabold text-xs uppercase tracking-wider shadow-md transition-all flex items-center justify-center space-x-1.5 shrink-0 cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Unlock VIP PRO Global Sightings</span>
-            </button>
-          )}
-        </div>
-      )}
-
       {/* View Switch: Sightings Table vs Cards Stream */}
       {viewMode === 'table' ? (
         <SightingsTable
-          sightings={accessibleSightings}
+          sightings={sightings}
           currentUser={currentUser}
           sessionUserId={effectiveUserId}
           onLikeSighting={onLikeSighting}
@@ -296,7 +291,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
                   : 'bg-[rgba(237,238,239,0.05)] text-[#edeeef]/70 hover:bg-[rgba(237,238,239,0.1)]'
               }`}
             >
-              {isFreeUser ? `My Sightings (${accessibleSightings.length})` : `All Sightings (${sightings.length})`}
+              All Sightings ({sightings.length})
             </button>
 
             <button
@@ -311,18 +306,16 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
               <span>Verified</span>
             </button>
 
-            {!isFreeUser && (
-              <button
-                onClick={() => setFilterType('mine')}
-                className={`min-h-[36px] px-3 py-1.5 rounded text-xs font-mono-code uppercase tracking-wider whitespace-nowrap transition-all ${
-                  filterType === 'mine'
-                    ? 'bg-[#00ffaa] text-[#0b0c0d] font-bold shadow-md shadow-[#00ffaa]/20'
-                    : 'bg-[rgba(237,238,239,0.05)] text-[#edeeef]/70 hover:bg-[rgba(237,238,239,0.1)]'
-                }`}
-              >
-                Mine
-              </button>
-            )}
+            <button
+              onClick={() => setFilterType('mine')}
+              className={`min-h-[36px] px-3 py-1.5 rounded text-xs font-mono-code uppercase tracking-wider whitespace-nowrap transition-all ${
+                filterType === 'mine'
+                  ? 'bg-[#00ffaa] text-[#0b0c0d] font-bold shadow-md shadow-[#00ffaa]/20'
+                  : 'bg-[rgba(237,238,239,0.05)] text-[#edeeef]/70 hover:bg-[rgba(237,238,239,0.1)]'
+              }`}
+            >
+              My Sightings ({mySightingsCount})
+            </button>
 
             <button
               onClick={() => {
@@ -408,7 +401,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
                   {s.syncStatus === 'pending' && (
                     <div
                       className="flex items-center space-x-1 bg-amber-500/15 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded text-[10px] font-mono-code uppercase font-semibold"
-                      title="Saved in local offline sync queue. Will automatically push to Supabase once connectivity is restored."
+                      title="Saved in offline queue. Will automatically sync once connectivity is restored."
                     >
                       <CloudOff className="w-3.5 h-3.5 text-amber-400" />
                       <span>Offline (Queued)</span>
@@ -418,7 +411,7 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
                   {s.syncStatus === 'syncing' && (
                     <div
                       className="flex items-center space-x-1 bg-sky-500/15 text-sky-300 border border-sky-500/40 px-2 py-0.5 rounded text-[10px] font-mono-code uppercase font-semibold"
-                      title="Pushing to Supabase cloud database..."
+                      title="Syncing observation..."
                     >
                       <RefreshCw className="w-3.5 h-3.5 text-sky-400 animate-spin" />
                       <span>Syncing...</span>

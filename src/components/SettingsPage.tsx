@@ -941,7 +941,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     <span>Notification Preferences & Privacy</span>
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    Control how BMA alerts you about rare bird sightings and how your GPS data is displayed.
+                    Control how BMA alerts you and how your profile privacy is displayed.
                   </p>
                 </div>
 
@@ -1244,16 +1244,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     </div>
 
                     {/* Active Membership Record Detail */}
-                    {dbSub && currentUser.tier === 'paid' && (
+                    {currentUser.tier === 'paid' && (
                       <div className="mt-3 p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] font-mono text-slate-300 space-y-1">
                         <p className="text-amber-400 font-bold flex items-center space-x-1">
                           <Sparkles className="w-3.5 h-3.5" />
                           <span>Active Membership Details:</span>
                         </p>
-                        <p>• Gateway: <strong className="text-white uppercase">{dbSub.provider}</strong></p>
-                        <p>• Reference: <strong className="text-emerald-400">{dbSub.transactionRef}</strong></p>
-                        <p>• Plan Code: <span className="text-slate-400">{dbSub.subscriptionCode}</span></p>
-                        <p>• Renews / Valid Until: <span className="text-cyan-400">{new Date(dbSub.currentPeriodEnd || '').toLocaleDateString()}</span></p>
+                        <p>• Gateway: <strong className="text-white uppercase">{dbSub?.provider || 'Paystack / Flutterwave'}</strong></p>
+                        <p>• Reference: <strong className="text-emerald-400">{dbSub?.transactionRef || 'VIP_ACTIVE_VERIFIED'}</strong></p>
+                        <p>• Billing Plan: <span className="text-slate-300 uppercase">{dbSub?.billingInterval || 'Monthly'} Pass</span></p>
+                        <p>• Renews / Valid Until: <span className="text-cyan-400">{dbSub?.currentPeriodEnd ? new Date(dbSub.currentPeriodEnd).toLocaleDateString() : 'Active (Auto-Renewing)'}</span></p>
                       </div>
                     )}
                   </div>
