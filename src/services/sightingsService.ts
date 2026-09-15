@@ -110,7 +110,8 @@ export async function fetchSightingsFromSupabase(): Promise<{ data: Sighting[] |
     let { data, error } = await supabase
       .from('sightings')
       .select('*')
-      .order('timestamp', { ascending: false });
+      .order('timestamp', { ascending: false })
+      .limit(100);
 
     // Fallback: query 'sighting_logs' if 'sightings' view is missing or errors
     if (error) {
@@ -118,7 +119,8 @@ export async function fetchSightingsFromSupabase(): Promise<{ data: Sighting[] |
       const fallbackResult = await supabase
         .from('sighting_logs')
         .select('*')
-        .order('sighting_date', { ascending: false });
+        .order('sighting_date', { ascending: false })
+        .limit(100);
       
       if (!fallbackResult.error && fallbackResult.data) {
         data = fallbackResult.data;

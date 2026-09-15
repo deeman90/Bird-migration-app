@@ -251,9 +251,55 @@ export async function uploadBase64ToSupabaseStorage({
   }
 }
 
+// Fast in-memory signed URL cache with TTL (valid for 6 days when default is 7 days)
+interface CachedSignedUrl {
+  url: string;
+  expiresAt: number;
+}
+const signedUrlMemoryCache = new Map<string, CachedSignedUrl>();
+const inFlightSignedUrlPromises = new Map<string, Promise<string>>();
+
+// Try reading from sessionStorage on first hit
+function getStoredSignedUrl(key: string): string | null {
+  const inMem = signedUrlMemoryCache.get(key);
+  const now = Date.now();
+  if (inMem && inMem.expiresAt > now + 60000) {
+    return inMem.url;
+  }
+  if (typeof sessionStorage !== 'undefined') {
+    try {
+      const raw = sessionStorage.getItem(`bma_surl_${key}`);
+      if (raw) {
+        const parsed = JSON.parse(raw) as CachedSignedUrl;
+        if (parsed.expiresAt > now + 60000) {
+          signedUrlMemoryCache.set(key, parsed);
+          return parsed.url;
+        }
+      }
+    } catch {
+      // ignore storage parse errors
+    }
+  }
+  return null;
+}
+
+function setStoredSignedUrl(key: string, url: string, expiresInSeconds: number): void {
+  const expiresAt = Date.now() + (expiresInSeconds - 3600) * 1000;
+  const entry: CachedSignedUrl = { url, expiresAt };
+  signedUrlMemoryCache.set(key, entry);
+  if (typeof sessionStorage !== 'undefined') {
+    try {
+      sessionStorage.setItem(`bma_surl_${key}`, JSON.stringify(entry));
+    } catch {
+      // ignore storage quota errors
+    }
+  }
+}
+
 /**
  * Returns a signed URL for a file path or URL.
  * If input is already an external URL or data URI, returns as-is.
+ * Caches signed URLs in memory & sessionStorage to prevent redundant network waterfalls.
  */
 export async function getSignedStorageUrl(filePathOrUrl: string, expiresInSeconds = 604800): Promise<string> {
   if (!filePathOrUrl) return '';
@@ -261,20 +307,39 @@ export async function getSignedStorageUrl(filePathOrUrl: string, expiresInSecond
     return filePathOrUrl;
   }
 
-  try {
-    const { data, error } = await supabase.storage
-      .from(BUCKET_NAME)
-      .createSignedUrl(filePathOrUrl, expiresInSeconds);
-
-    if (error || !data?.signedUrl) {
-      console.warn('Error creating signed URL for path:', filePathOrUrl, error?.message);
-      return filePathOrUrl;
-    }
-
-    return data.signedUrl;
-  } catch (err) {
-    return filePathOrUrl;
+  // 1. Check instant cache (0ms lookup)
+  const cachedUrl = getStoredSignedUrl(filePathOrUrl);
+  if (cachedUrl) {
+    return cachedUrl;
   }
+
+  // 2. Check if a request for this exact path is already in flight
+  if (inFlightSignedUrlPromises.has(filePathOrUrl)) {
+    return inFlightSignedUrlPromises.get(filePathOrUrl)!;
+  }
+
+  const promise = (async () => {
+    try {
+      const { data, error } = await supabase.storage
+        .from(BUCKET_NAME)
+        .createSignedUrl(filePathOrUrl, expiresInSeconds);
+
+      if (error || !data?.signedUrl) {
+        console.warn('Error creating signed URL for path:', filePathOrUrl, error?.message);
+        return filePathOrUrl;
+      }
+
+      setStoredSignedUrl(filePathOrUrl, data.signedUrl, expiresInSeconds);
+      return data.signedUrl;
+    } catch (err) {
+      return filePathOrUrl;
+    } finally {
+      inFlightSignedUrlPromises.delete(filePathOrUrl);
+    }
+  })();
+
+  inFlightSignedUrlPromises.set(filePathOrUrl, promise);
+  return promise;
 }
 
 /**

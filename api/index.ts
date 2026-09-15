@@ -1,7 +1,17 @@
 import express from 'express';
+import compression from 'compression';
 import { GoogleGenAI, Type } from '@google/genai';
 
 const app = express();
+
+// High-performance gzip/brotli response compression
+app.use(compression({
+  threshold: 1024, // Only compress responses > 1KB
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  },
+}));
 
 // Security and CORS Headers
 app.disable('x-powered-by');

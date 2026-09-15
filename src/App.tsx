@@ -91,11 +91,36 @@ function mergeSightings(existingList: Sighting[], remoteList: Sighting[]): Sight
   }
 
   // Convert map to array and sort by newest timestamp first
-  return Array.from(map.values()).sort((a, b) => {
+  const merged = Array.from(map.values()).sort((a, b) => {
     const timeA = new Date(a.timestamp).getTime() || 0;
     const timeB = new Date(b.timestamp).getTime() || 0;
     return timeB - timeA;
   });
+
+  // Fast shallow comparison to preserve reference if nothing actually changed
+  // This prevents cascading re-renders across Leaflet, feed, and tables
+  if (merged.length === existingList.length) {
+    let isIdentical = true;
+    for (let i = 0; i < merged.length; i++) {
+      const m = merged[i];
+      const e = existingList[i];
+      if (
+        m.id !== e.id ||
+        m.likesCount !== e.likesCount ||
+        m.likedByMe !== e.likedByMe ||
+        (m.comments?.length || 0) !== (e.comments?.length || 0) ||
+        m.timestamp !== e.timestamp
+      ) {
+        isIdentical = false;
+        break;
+      }
+    }
+    if (isIdentical) {
+      return existingList;
+    }
+  }
+
+  return merged;
 }
 
 export default function App() {
@@ -215,13 +240,16 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Persist Sightings
+  // Persist Sightings with 400ms debounce to prevent blocking UI interactions
   useEffect(() => {
-    try {
-      localStorage.setItem('aerotrack_sightings', JSON.stringify(sightings));
-    } catch {
-      // ignore
-    }
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem('aerotrack_sightings', JSON.stringify(sightings));
+      } catch {
+        // ignore storage errors
+      }
+    }, 400);
+    return () => clearTimeout(timer);
   }, [sightings]);
 
   // Persist Rewards
@@ -279,7 +307,7 @@ export default function App() {
       }
     }
     checkSubscription();
-  }, [session, currentUser.id]);
+  }, [session?.user?.id, currentUser.id, currentUser.tier]);
 
   // Sync user profile from Supabase profiles table
   useEffect(() => {
@@ -311,7 +339,7 @@ export default function App() {
       }
     }
     loadUserProfile();
-  }, [session]);
+  }, [session?.user?.id]);
 
   const isLoggedIn = !!session;
 
@@ -446,7 +474,7 @@ export default function App() {
       }
     }
     loadData();
-  }, [session]);
+  }, [session?.user?.id]);
 
   // Realtime subscription: keep sightings in sync across tabs or external database modifications
   useEffect(() => {
@@ -500,19 +528,29 @@ export default function App() {
     };
     window.addEventListener('storage', handleStorageChange);
 
-    // Periodic live feed polling every 15s when online to pull newest sightings of users
-    const pollInterval = setInterval(() => {
-      if (isDeviceOnline()) {
-        fetchSightingsFromSupabase().then(({ data }) => {
-          if (data && data.length > 0) {
-            setSightings((prev) => mergeSightings(prev, data));
-          }
-        }).catch(() => {});
+    // Refresh when user returns to tab if online
+    let lastVisibilityFetch = Date.now();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isDeviceOnline()) {
+        const now = Date.now();
+        if (now - lastVisibilityFetch > 30000) {
+          lastVisibilityFetch = now;
+          refreshRemoteSightings();
+        }
       }
-    }, 15000);
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Light background fallback polling (every 90s, only when tab is active and online)
+    const pollInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && isDeviceOnline()) {
+        refreshRemoteSightings();
+      }
+    }, 90000);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(pollInterval);
       if (channel) {
         try {
@@ -864,7 +902,7 @@ export default function App() {
 
       {/* Primary View Router */}
       <main className={`flex-1 w-full ${activeTab === 'map' ? 'pb-16 md:pb-0' : 'pb-24 md:pb-12'}`}>
-        {activeTab === 'map' && (
+        <div className={activeTab === 'map' ? 'block' : 'hidden'}>
           <InteractiveMap
             sightings={sightings}
             hotspots={HOTSPOTS}
@@ -887,7 +925,7 @@ export default function App() {
             }}
             selectedCoordinates={pickedCoords}
           />
-        )}
+        </div>
 
         {activeTab === 'log' && (
           <SightingLogger
