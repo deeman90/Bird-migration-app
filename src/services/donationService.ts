@@ -3,95 +3,24 @@ import { safeFetchJson } from '../utils/apiClient';
 
 const DONATIONS_STORAGE_KEY = 'aerotrack_donations_ledger';
 
-export const INITIAL_DONATIONS: DonationRecord[] = [
-  {
-    id: 'don-init-0',
-    donorName: 'Open Science & Migration Guild',
-    donorEmail: 'guild@openscience.org',
-    amount: 500,
-    currency: 'USD',
-    cause: 'platform_infrastructure',
-    frequency: 'monthly',
-    message: 'Keeping independent open-source flyway radar tracking infrastructure fast, secure, and ad-free.',
-    isAnonymous: false,
-    date: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
-    provider: 'card',
-    status: 'completed',
-    receiptNumber: 'BMA-DON-2026-9901',
-  },
-  {
-    id: 'don-init-1',
-    donorName: 'Dr. Evelyn Vance',
-    donorEmail: 'evelyn.vance@audubon-alliance.org',
-    amount: 150,
-    currency: 'USD',
-    cause: 'telemetry_tags',
-    frequency: 'one_time',
-    message: 'To support GPS satellite tracking of the Arctic Tern on its Atlantic journey.',
-    isAnonymous: false,
-    date: new Date(Date.now() - 1000 * 60 * 60 * 14).toISOString(),
-    provider: 'card',
-    status: 'completed',
-    receiptNumber: 'BMA-DON-2026-9481',
-  },
-  {
-    id: 'don-init-2',
-    donorName: 'Nordic Flyway Trust',
-    donorEmail: 'contact@nordicflyways.no',
-    amount: 250,
-    currency: 'USD',
-    cause: 'habitat_wetlands',
-    frequency: 'monthly',
-    message: 'Dedicated to preserving stopover mudflats along the Wadden Sea corridor.',
-    isAnonymous: false,
-    date: new Date(Date.now() - 1000 * 60 * 60 * 42).toISOString(),
-    provider: 'bank_transfer',
-    status: 'completed',
-    receiptNumber: 'BMA-DON-2026-8922',
-  },
-  {
-    id: 'don-init-3',
-    donorName: 'Anonymous Birder',
-    donorEmail: 'donor@gmail.com',
-    amount: 50,
-    currency: 'USD',
-    cause: 'youth_education',
-    frequency: 'one_time',
-    message: 'In loving memory of my grandfather who introduced me to morning bird walks.',
-    isAnonymous: true,
-    date: new Date(Date.now() - 1000 * 60 * 60 * 75).toISOString(),
-    provider: 'paystack',
-    status: 'completed',
-    receiptNumber: 'BMA-DON-2026-7734',
-  },
-  {
-    id: 'don-init-4',
-    donorName: 'Marcus Lindholm',
-    donorEmail: 'marcus.l@bioacoustics.fi',
-    amount: 75,
-    currency: 'USD',
-    cause: 'telemetry_tags',
-    frequency: 'monthly',
-    message: 'Autonomous bioacoustic sensing for nocturnal passerine migration.',
-    isAnonymous: false,
-    date: new Date(Date.now() - 1000 * 60 * 60 * 120).toISOString(),
-    provider: 'card',
-    status: 'completed',
-    receiptNumber: 'BMA-DON-2026-6219',
-  },
-];
+export const INITIAL_DONATIONS: DonationRecord[] = [];
 
 export function getStoredDonations(): DonationRecord[] {
   try {
     const raw = localStorage.getItem(DONATIONS_STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(DONATIONS_STORAGE_KEY, JSON.stringify(INITIAL_DONATIONS));
-      return INITIAL_DONATIONS;
+      return [];
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_DONATIONS;
+    if (!Array.isArray(parsed)) return [];
+    // Filter out any legacy mock donation records
+    const clean = parsed.filter((d) => d && d.id && !d.id.startsWith('don-init-'));
+    if (clean.length !== parsed.length) {
+      localStorage.setItem(DONATIONS_STORAGE_KEY, JSON.stringify(clean));
+    }
+    return clean;
   } catch {
-    return INITIAL_DONATIONS;
+    return [];
   }
 }
 

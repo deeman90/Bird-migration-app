@@ -1,13 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { BirdSpecies, Hotspot, LeaderboardEntry, MigrationRoute, RewardMilestone, Sighting, User } from './types';
 import {
   BIRD_SPECIES_LIST,
+  DEFAULT_USER,
   HOTSPOTS,
   INITIAL_SIGHTINGS,
-  INITIAL_USER_FREE,
-  INITIAL_USER_PAID,
-  LEADERBOARD_DATA,
+  buildLeaderboardData,
   MIGRATION_ROUTES,
   REWARD_MILESTONES,
 } from './data/mockData';
@@ -161,12 +160,12 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User>(() => {
     try {
       const saved = localStorage.getItem('aerotrack_user');
-      const user = saved ? JSON.parse(saved) : INITIAL_USER_FREE;
+      const user = saved ? JSON.parse(saved) : DEFAULT_USER;
       delete user.restrictedUntil;
       delete user.restrictionReason;
       return user;
     } catch {
-      return INITIAL_USER_FREE;
+      return DEFAULT_USER;
     }
   });
 
@@ -203,6 +202,12 @@ export default function App() {
       return REWARD_MILESTONES;
     }
   });
+
+  // Dynamic leaderboard computed from real sightings
+  const dynamicLeaderboardData = useMemo(
+    () => buildLeaderboardData(sightings, currentUser),
+    [sightings, currentUser]
+  );
 
   // Map Picker State
   const [isPickerMode, setIsPickerMode] = useState<boolean>(false);
@@ -763,7 +768,7 @@ export default function App() {
   };
 
   // Like Sighting Handler
-  const handleLikeSighting = (id: string) => {
+  const handleLikeSighting = useCallback((id: string) => {
     let updatedLikesCount = 0;
     setSightings((prev) =>
       prev.map((s) => {
@@ -781,10 +786,10 @@ export default function App() {
     );
 
     updateSightingInSupabase(id, { likesCount: updatedLikesCount });
-  };
+  }, []);
 
   // Add Comment Handler
-  const handleAddComment = (sightingId: string, content: string) => {
+  const handleAddComment = useCallback((sightingId: string, content: string) => {
     let updatedComments: any[] = [];
     setSightings((prev) =>
       prev.map((s) => {
@@ -810,28 +815,28 @@ export default function App() {
     if (updatedComments.length > 0) {
       updateSightingInSupabase(sightingId, { comments: updatedComments });
     }
-  };
+  }, [session?.user?.id, currentUser.id, currentUser.name, currentUser.avatar]);
 
   // Delete Sighting Handler
-  const handleDeleteSighting = (id: string) => {
+  const handleDeleteSighting = useCallback((id: string) => {
     setSightings((prev) => prev.filter((s) => s.id !== id));
     deleteSightingInSupabase(id);
     showToast('✓ Sighting deleted successfully.', 'success');
-  };
+  }, []);
 
   // Jump to specific map coordinates
-  const handleJumpToMapSighting = (sighting: Sighting) => {
+  const handleJumpToMapSighting = useCallback((sighting: Sighting) => {
     setActiveTab('map');
-  };
+  }, []);
 
   // Request Pick on Map Trigger
-  const handleRequestPickOnMap = () => {
+  const handleRequestPickOnMap = useCallback(() => {
     setIsPickerMode(true);
     setActiveTab('map');
-  };
+  }, []);
 
   // Claim Reward Perk
-  const handleClaimReward = (rewardId: string) => {
+  const handleClaimReward = useCallback((rewardId: string) => {
     setRewardMilestones((prev) =>
       prev.map((m) => (m.id === rewardId ? { ...m, unlocked: true } : m))
     );
@@ -843,7 +848,7 @@ export default function App() {
     } else {
       showToast('🎁 Perk claimed successfully!', 'success');
     }
-  };
+  }, [currentUser.tier]);
 
   return (
     <div
@@ -959,7 +964,7 @@ export default function App() {
 
         {activeTab === 'leaderboard' && (
           <LeaderboardAndRewards
-            leaderboardData={LEADERBOARD_DATA}
+            leaderboardData={dynamicLeaderboardData}
             rewardMilestones={rewardMilestones}
             currentUser={currentUser}
             onClaimReward={handleClaimReward}

@@ -20,7 +20,7 @@ interface InteractiveMapProps {
   selectedCoordinates?: { lat: number; lng: number } | null;
 }
 
-export const InteractiveMap: React.FC<InteractiveMapProps> = ({
+const InteractiveMapComponent: React.FC<InteractiveMapProps> = ({
   sightings,
   hotspots,
   migrationRoutes,
@@ -640,3 +640,5 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     </div>
   );
 };
+
+export const InteractiveMap = React.memo(InteractiveMapComponent);

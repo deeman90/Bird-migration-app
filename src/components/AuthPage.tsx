@@ -24,7 +24,6 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
-import { INITIAL_USER_FREE, INITIAL_USER_PAID } from '../data/mockData';
 import { BMALogo } from './BMALogo';
 
 interface AuthPageProps {
@@ -308,16 +307,22 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setForgotSubmitted(true);
   };
 
-  // Preset Quick Demo Login
-  const handleQuickDemoLogin = (preset: 'free' | 'paid') => {
-    const user = preset === 'free' ? INITIAL_USER_FREE : INITIAL_USER_PAID;
-    setSuccessMsg(`Switched to demo user ${user.name} (${user.tier.toUpperCase()})...`);
-    setTimeout(() => {
-      onLoginSuccess(user);
-      if (onGoToTab) onGoToTab('map');
-      // Programmatic navigation after login click
-      navigate('/');
-    }, 600);
+  // OAuth Single Sign-On
+  const handleOAuthSignIn = async (provider: 'google' | 'github') => {
+    setErrorMsg(null);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (error) {
+        setErrorMsg(error.message);
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || `Failed to initiate ${provider} sign in.`);
+    }
   };
 
   return (
@@ -401,31 +406,31 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             </div>
           </div>
 
-          {/* Current Logged In Quick Status or Demo Selector */}
+          {/* Current Session Status */}
           <div className="mt-8 pt-6 border-t border-slate-800">
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Quick One-Click Demo Access
+              Current Session Status
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => handleQuickDemoLogin('free')}
-                className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition-all group"
-              >
-                <p className="text-xs font-bold text-slate-200 group-hover:text-emerald-400">Sarah Jenkins</p>
-                <p className="text-[10px] text-slate-500">Free Observer • 18 Sightings</p>
-              </button>
-
-              <button
-                onClick={() => handleQuickDemoLogin('paid')}
-                className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-amber-500/30 text-left transition-all group"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-amber-300 group-hover:text-amber-200">Marcus Vance</p>
-                  <span className="text-[9px] bg-amber-500/20 text-amber-400 font-bold px-1 rounded">PRO</span>
+            {currentUser.id && currentUser.id !== 'guest' ? (
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-emerald-400">{currentUser.name}</p>
+                  <p className="text-[10px] text-slate-400">{currentUser.email || 'Verified Observer'} • {currentUser.tier === 'paid' ? 'VIP PRO' : 'Free Tier'}</p>
                 </div>
-                <p className="text-[10px] text-slate-500">VIP Pro • 42 Sightings</p>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/')}
+                  className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] font-bold hover:bg-emerald-500/30 transition-colors"
+                >
+                  Open Map
+                </button>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+                <p className="text-xs text-slate-300">Observer Guest Mode</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Sign in with email or SSO below to securely save and synchronize sightings across devices.</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -573,16 +578,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={() => handleQuickDemoLogin('free')}
-                      className="py-2.5 px-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-semibold text-slate-300 flex items-center justify-center space-x-2 transition-colors"
+                      onClick={() => handleOAuthSignIn('google')}
+                      className="py-2.5 px-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-semibold text-slate-300 flex items-center justify-center space-x-2 transition-colors cursor-pointer"
                     >
                       <Globe className="w-4 h-4 text-emerald-400" />
                       <span>Google SSO</span>
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleQuickDemoLogin('paid')}
-                      className="py-2.5 px-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-semibold text-slate-300 flex items-center justify-center space-x-2 transition-colors"
+                      onClick={() => handleOAuthSignIn('github')}
+                      className="py-2.5 px-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-semibold text-slate-300 flex items-center justify-center space-x-2 transition-colors cursor-pointer"
                     >
                       <Github className="w-4 h-4 text-slate-300" />
                       <span>GitHub SSO</span>

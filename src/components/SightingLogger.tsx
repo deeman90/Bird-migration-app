@@ -23,31 +23,7 @@ interface SightingLoggerProps {
   existingSightings?: Sighting[];
 }
 
-// Sample demo images for easy testing if user doesn't upload a file from disk
-const SAMPLE_BIRD_PHOTOS = [
-  'https://images.unsplash.com/photo-1551085254-e96b210df58a?auto=format&fit=crop&q=80&w=800',
-  'https://images.unsplash.com/photo-1606567595334-d39972c85dbe?auto=format&fit=crop&q=80&w=800',
-  'https://images.unsplash.com/photo-1618172193763-c511deb635ca?auto=format&fit=crop&q=80&w=800',
-  'https://images.unsplash.com/photo-1596704017254-9b121068fb31?auto=format&fit=crop&q=80&w=800',
-  'https://images.unsplash.com/photo-1520808663317-647b476a81b9?auto=format&fit=crop&q=80&w=800',
-];
-
-export const SAMPLE_BAT_PHOTOS = [
-  {
-    name: 'Mexican Free-tailed Bat',
-    url: 'https://images.unsplash.com/photo-1574063413132-355dbfd83e25?auto=format&fit=crop&q=80&w=800',
-    speciesId: 'sp_mexican_free_tailed_bat',
-  },
-  {
-    name: 'Large Flying Fox (Fruit Bat)',
-    url: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&q=80&w=800',
-    speciesId: 'sp_large_flying_fox',
-  },
-];
-
-export const NON_BIRD_DEMO_PHOTO = 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=800';
-
-export const SightingLogger: React.FC<SightingLoggerProps> = ({
+const SightingLoggerComponent: React.FC<SightingLoggerProps> = ({
   speciesList,
   currentUser,
   onAddSighting,
@@ -92,8 +68,8 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     { name: 'Bosque del Apache, NM', lat: '33.7997', lng: '-106.8872', region: 'Central Flyway' },
     { name: 'Everglades National Park, FL', lat: '25.2866', lng: '-80.8987', region: 'Atlantic Flyway' },
   ];
-  const [photoUrl, setPhotoUrl] = useState<string>(SAMPLE_BIRD_PHOTOS[0]);
-  const [previewImage, setPreviewImage] = useState<string>(SAMPLE_BIRD_PHOTOS[0]);
+  const [photoUrl, setPhotoUrl] = useState<string>('');
+  const [previewImage, setPreviewImage] = useState<string>('');
   const [currentImageFile, setCurrentImageFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [loggerError, setLoggerError] = useState<string | null>(null);
@@ -101,7 +77,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
   // Bird Image Validation state (prevents null, empty, or non-bird images)
   const [isValidatingBirdImage, setIsValidatingBirdImage] = useState<boolean>(false);
   const [imageValidationError, setImageValidationError] = useState<string | null>(null);
-  const [isBirdVerified, setIsBirdVerified] = useState<boolean>(true);
+  const [isBirdVerified, setIsBirdVerified] = useState<boolean>(false);
 
   // Duplicate Image Detection state
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
@@ -449,31 +425,6 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     }
   };
 
-  // Preset photo selection handler
-  const handleSelectSamplePhoto = async (url: string) => {
-    setCurrentImageFile(null);
-    setPhotoUrl(url);
-    setPreviewImage(url);
-    setLoggerError(null);
-    setImageValidationError(null);
-    setDuplicateWarning(null);
-    setIsDuplicateImage(false);
-    setIsSimulatingWebDownload(false);
-
-    setIsValidatingBirdImage(true);
-    const result = await validateBirdInImage(url);
-    setIsValidatingBirdImage(false);
-
-    if (!result.isValid) {
-      setIsBirdVerified(false);
-      setImageValidationError(result.error || 'A null, empty or non-bird image cannot be uploaded.');
-      setLoggerError(result.error || 'A null, empty or non-bird image cannot be uploaded.');
-    } else {
-      setIsBirdVerified(true);
-      setImageValidationError(null);
-    }
-  };
-
   // Image Upload File Handler
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -756,7 +707,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
         locationName: locationName || `Location (${latNum}, ${lngNum})`,
         region: currentUser.region,
         timestamp: new Date().toISOString(),
-        photoUrl: photoUrl || SAMPLE_BIRD_PHOTOS[0],
+        photoUrl: photoUrl || previewImage || '',
         flockCount: Math.max(1, flockCount),
         behavior,
         notes: notes || 'Observed active migration flight formation in local air currents.',
@@ -808,7 +759,7 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
             region: currentUser.region,
             timestamp: new Date(Date.now() + (idx + 1) * 1000).toISOString(),
             // SINGLE IMAGE REUSE: Reuse the exact same photoUrl!
-            photoUrl: photoUrl || SAMPLE_BIRD_PHOTOS[0],
+            photoUrl: photoUrl || previewImage || '',
             flockCount: Math.max(1, extra.flockCount || 1),
             behavior: extra.behavior || behavior,
             notes: (extra.notes ? `${extra.notes} • ` : '') + `[Multi-sighting from single image: ${extra.positionLabel || `Bird #${idx + 2}`}] ${notes || ''}`.trim(),
@@ -1435,77 +1386,6 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
                     className="hidden"
                   />
                 </div>
-
-                {/* Preset Testing Chips */}
-                <div className="space-y-1.5 pt-1">
-                  <span className="text-[10px] font-mono-code text-[#edeeef]/60 uppercase tracking-wider block">
-                    Demo Presets & Upload Testing:
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectSamplePhoto(SAMPLE_BIRD_PHOTOS[0])}
-                      className="px-2 py-1 rounded bg-[rgba(237,238,239,0.06)] hover:bg-[#00ffaa]/20 border border-[rgba(237,238,239,0.15)] hover:border-[#00ffaa]/40 text-[#edeeef] hover:text-[#00ffaa] text-[11px] font-mono-code transition-colors cursor-pointer"
-                    >
-                      Bird: Arctic Tern
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectSamplePhoto(SAMPLE_BIRD_PHOTOS[1])}
-                      className="px-2 py-1 rounded bg-[rgba(237,238,239,0.06)] hover:bg-[#00ffaa]/20 border border-[rgba(237,238,239,0.15)] hover:border-[#00ffaa]/40 text-[#edeeef] hover:text-[#00ffaa] text-[11px] font-mono-code transition-colors cursor-pointer"
-                    >
-                      Bird: Osprey
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectSamplePhoto(SAMPLE_BIRD_PHOTOS[2])}
-                      className="px-2 py-1 rounded bg-[rgba(237,238,239,0.06)] hover:bg-[#00ffaa]/20 border border-[rgba(237,238,239,0.15)] hover:border-[#00ffaa]/40 text-[#edeeef] hover:text-[#00ffaa] text-[11px] font-mono-code transition-colors cursor-pointer"
-                    >
-                      Bird: Sandhill Crane
-                    </button>
-                    {/* Bat Exception Test Buttons */}
-                    {SAMPLE_BAT_PHOTOS.map((bat) => (
-                      <button
-                        key={bat.speciesId}
-                        type="button"
-                        onClick={() => handleSelectSamplePhoto(bat.url)}
-                        className="px-2 py-1 rounded bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 hover:text-purple-200 text-[11px] font-mono-code transition-colors cursor-pointer flex items-center space-x-1"
-                        title={`Test permitted bat exception: ${bat.name}`}
-                      >
-                        <span>🦇</span>
-                        <span>Bat: {bat.name.split(' (')[0]}</span>
-                      </button>
-                    ))}
-                    {/* Non-Bird Image Test Button */}
-                    <button
-                      type="button"
-                      onClick={() => handleSelectSamplePhoto(NON_BIRD_DEMO_PHOTO)}
-                      className="px-2 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-rose-200 text-[11px] font-mono-code transition-colors cursor-pointer flex items-center space-x-1"
-                      title="Test validation that non-bird images (e.g. dog) cannot be uploaded"
-                    >
-                      <AlertTriangle className="w-3 h-3 text-rose-400" />
-                      <span>Test Non-Bird (Dog Photo)</span>
-                    </button>
-                    {/* Empty/Null Photo Test Button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPhotoUrl('');
-                        setPreviewImage('');
-                        setCurrentImageFile(null);
-                        setClientExif(null);
-                        setIsSimulatingWebDownload(false);
-                        setIsBirdVerified(false);
-                        setImageValidationError('A null or empty image cannot be uploaded. Please select a valid bird or bat photograph.');
-                        setLoggerError('A null or empty image cannot be uploaded. Please select a valid bird or bat photograph.');
-                      }}
-                      className="px-2 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 hover:text-amber-200 text-[11px] font-mono-code transition-colors cursor-pointer"
-                      title="Test validation that null or empty images cannot be uploaded"
-                    >
-                      Test Null / Empty Photo
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -1818,3 +1698,5 @@ export const SightingLogger: React.FC<SightingLoggerProps> = ({
     </div>
   );
 };
+
+export const SightingLogger = React.memo(SightingLoggerComponent);

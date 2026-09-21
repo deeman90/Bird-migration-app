@@ -253,59 +253,7 @@ export async function validateBirdInImage(
     }
   }
 
-  // 3. Known built-in sample bird photos (bypass remote call for instant test response)
-  if (typeof photoUrl === 'string') {
-    const isKnownBirdSample =
-      photoUrl.includes('photo-1551085254') || // Arctic Tern
-      photoUrl.includes('photo-1606567595') || // Osprey
-      photoUrl.includes('photo-1618172193') || // Sandhill Crane
-      photoUrl.includes('photo-1596704017') || // White Stork
-      photoUrl.includes('photo-1520808663') || // Hummingbird
-      photoUrl.includes('photo-1518709268') || // Crane
-      photoUrl.includes('photo-1579899338');   // Kingfisher
-
-    if (isKnownBirdSample) {
-      return {
-        isValid: true,
-        isBird: true,
-        isBat: false,
-        detectedSubject: 'Avian Specimen (Verified Bird)',
-        commonName: 'Verified Bird',
-        confidenceScore: 98,
-      };
-    }
-
-    // Permitted Bat species samples (Order Chiroptera exception)
-    const isKnownBatSample =
-      photoUrl.includes('photo-1574063413132') || // Mexican Free-tailed Bat
-      photoUrl.includes('photo-1509198397868') || // Large Flying Fox
-      photoUrl.toLowerCase().includes('bat');
-
-    if (isKnownBatSample) {
-      return {
-        isValid: true,
-        isBird: true,
-        isBat: true,
-        detectedSubject: 'Mexican Free-tailed Bat (Chiroptera Exception)',
-        commonName: 'Mexican Free-tailed Bat',
-        scientificName: 'Tadarida brasiliensis',
-        confidenceScore: 96,
-      };
-    }
-
-    // Specific test URL for non-bird demo
-    if (photoUrl.includes('photo-1543466835-00a7907e9de1') || photoUrl.toLowerCase().includes('non-bird')) {
-      return {
-        isValid: false,
-        isBird: false,
-        isBat: false,
-        detectedSubject: 'Domestic Dog (Canis lupus familiaris)',
-        error: '🚫 Non-Bird/Non-Bat Image Rejected: The uploaded image depicts a domestic dog, not a bird or bat. Only photographs of birds and bats (permitted aerial exception) can be uploaded.',
-      };
-    }
-  }
-
-  // 4. Verify bird or bat presence with Backend AI Vision Validator
+  // 3. Verify bird or bat presence with Backend AI Vision Validator
   try {
     let payloadBase64 = base64Image;
     if (!payloadBase64 && file) {

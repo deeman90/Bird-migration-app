@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserTier } from '../types';
-import { X, ShieldCheck, User as UserIcon, Lock, Sparkles, Check, LogIn } from 'lucide-react';
-import { INITIAL_USER_FREE, INITIAL_USER_PAID } from '../data/mockData';
+import { X, User as UserIcon, ShieldCheck } from 'lucide-react';
+import { DEFAULT_USER } from '../data/mockData';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -16,13 +16,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   currentUser,
   onSwitchUser,
 }) => {
-  const [activeTab, setActiveTab] = useState<'switch' | 'custom'>('switch');
-  
-  // Custom user fields
-  const [name, setName] = useState<string>(currentUser.name);
-  const [email, setEmail] = useState<string>(currentUser.email);
-  const [region, setRegion] = useState<string>(currentUser.region);
-  const [tier, setTier] = useState<UserTier>(currentUser.tier);
+  // Profile fields
+  const [name, setName] = useState<string>(currentUser.name || '');
+  const [email, setEmail] = useState<string>(currentUser.email || '');
+  const [region, setRegion] = useState<string>(currentUser.region || 'North America');
+  const [tier, setTier] = useState<UserTier>(currentUser.tier || 'free');
 
   if (!isOpen) return null;
 
@@ -30,12 +28,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     e.preventDefault();
     const updatedUser: User = {
       ...currentUser,
-      name: name || 'Birder Observer',
-      email: email || 'user@flyway.org',
-      region: region || 'North America',
+      id: currentUser.id && currentUser.id !== 'guest' ? currentUser.id : `usr_${Date.now()}`,
+      name: name.trim() || 'Observer',
+      email: email.trim(),
+      region: region || 'Global',
       tier: tier,
     };
     onSwitchUser(updatedUser);
+    onClose();
+  };
+
+  const handleResetGuest = () => {
+    onSwitchUser(DEFAULT_USER);
     onClose();
   };
 
@@ -50,8 +54,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <UserIcon className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-lg text-white">Observer Authentication</h3>
-              <p className="text-xs text-slate-400">Switch accounts or configure user credentials</p>
+              <h3 className="font-bold text-lg text-white">Observer Profile Settings</h3>
+              <p className="text-xs text-slate-400">Configure your active credentials and membership tier</p>
             </div>
           </div>
 
@@ -63,101 +67,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
         </div>
 
-        {/* Quick Presets Section */}
+        {/* Profile Settings Form */}
         <div className="p-6 space-y-6">
-          <div className="space-y-3">
-            <label className="text-xs font-bold uppercase text-slate-400 tracking-wider block">
-              Quick Demo Account Switcher
-            </label>
-
-            {/* Free Account Option */}
-            <div
-              onClick={() => {
-                onSwitchUser(INITIAL_USER_FREE);
-                onClose();
-              }}
-              className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                currentUser.id === INITIAL_USER_FREE.id
-                  ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/30'
-                  : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                {INITIAL_USER_FREE.avatar ? (
-                  <img
-                    src={INITIAL_USER_FREE.avatar}
-                    alt={INITIAL_USER_FREE.name}
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-                ) : null}
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-sm text-white">{INITIAL_USER_FREE.name}</span>
-                    <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">
-                      FREE PLAN
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400">{INITIAL_USER_FREE.email} • {INITIAL_USER_FREE.sightingsCount} sightings</p>
-                </div>
-              </div>
-
-              {currentUser.id === INITIAL_USER_FREE.id && (
-                <div className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-xs">
-                  ✓
-                </div>
-              )}
-            </div>
-
-            {/* Paid Account Option */}
-            <div
-              onClick={() => {
-                onSwitchUser(INITIAL_USER_PAID);
-                onClose();
-              }}
-              className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                currentUser.id === INITIAL_USER_PAID.id
-                  ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/30'
-                  : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                {INITIAL_USER_PAID.avatar ? (
-                  <img
-                    src={INITIAL_USER_PAID.avatar}
-                    alt={INITIAL_USER_PAID.name}
-                    className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400"
-                  />
-                ) : null}
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-sm text-white">{INITIAL_USER_PAID.name}</span>
-                    <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded border border-amber-500/30">
-                      VIP PRO
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400">{INITIAL_USER_PAID.email} • {INITIAL_USER_PAID.sightingsCount} sightings</p>
-                </div>
-              </div>
-
-              {currentUser.id === INITIAL_USER_PAID.id && (
-                <div className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-bold text-xs">
-                  ✓
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Edit Custom Profile Settings Form */}
-          <form onSubmit={handleCustomUserSave} className="pt-4 border-t border-slate-800 space-y-4">
-            <label className="text-xs font-bold uppercase text-slate-400 tracking-wider block">
-              Edit Current Profile & Tier
-            </label>
-
+          <form onSubmit={handleCustomUserSave} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Full Name</label>
                 <input
                   type="text"
+                  placeholder="e.g. Jane Doe"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
@@ -165,18 +83,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Region</label>
+                <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Email</label>
                 <input
-                  type="text"
-                  value={region}
-                  onChange={(e) => setRegion(e.target.value)}
+                  type="email"
+                  placeholder="e.g. observer@flyway.org"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Subscription Plan</label>
+              <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Flyway Region</label>
+              <select
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+              >
+                <option value="Global">Global</option>
+                <option value="North America">North America</option>
+                <option value="Europe">Europe</option>
+                <option value="Asia-Pacific">Asia-Pacific</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Membership Tier</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -203,12 +136,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
             </div>
 
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition-all"
-            >
-              Update Profile Details
-            </button>
+            <div className="pt-2 flex items-center space-x-2">
+              <button
+                type="submit"
+                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition-all"
+              >
+                Save Profile
+              </button>
+              <button
+                type="button"
+                onClick={handleResetGuest}
+                className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-all"
+              >
+                Reset Guest
+              </button>
+            </div>
           </form>
 
         </div>

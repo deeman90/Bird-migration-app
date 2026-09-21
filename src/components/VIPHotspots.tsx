@@ -9,7 +9,7 @@ interface VIPHotspotsProps {
   onSelectHotspotOnMap: (hotspot: Hotspot) => void;
 }
 
-export const VIPHotspots: React.FC<VIPHotspotsProps> = ({
+const VIPHotspotsComponent: React.FC<VIPHotspotsProps> = ({
   hotspots,
   currentUser,
   onUpgradeToPro,
@@ -227,3 +227,5 @@ export const VIPHotspots: React.FC<VIPHotspotsProps> = ({
     </div>
   );
 };
+
+export const VIPHotspots = React.memo(VIPHotspotsComponent);

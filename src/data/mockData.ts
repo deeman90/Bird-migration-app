@@ -1,69 +1,35 @@
-import { BirdSpecies, Hotspot, LeaderboardEntry, MigrationRoute, RewardMilestone, Sighting, User } from '../types';
+import { BirdSpecies, Hotspot, LeaderboardEntry, MigrationRoute, RewardMilestone, Sighting, User, isRareOrExtinctSpecies } from '../types';
 
-export const INITIAL_USER_FREE: User = {
-  id: 'usr_001',
-  name: 'Alex Rivera',
-  email: 'alex.birdwatcher@flyway.org',
-  phone: '+1 (555) 234-5678',
-  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300',
-  region: 'North America',
+export const DEFAULT_USER: User = {
+  id: 'guest',
+  name: 'Guest Observer',
+  email: '',
+  phone: '',
+  avatar: '',
+  region: 'Global',
   tier: 'free',
-  sightingsCount: 12,
-  rareSpeciesCount: 3,
-  points: 1250,
-  badges: ['Early Spotter', 'Coordinates Master'],
-  bio: 'Avid birder based in the Pacific Flyway. Passionate about coastal waders and seasonal raptor migrations.',
-  joinedDate: 'March 2025',
+  sightingsCount: 0,
+  rareSpeciesCount: 0,
+  points: 0,
+  badges: [],
+  bio: '',
+  joinedDate: '',
   address: {
-    street: '742 Evergreen Terrace',
-    city: 'Seattle',
-    state: 'WA',
-    postalCode: '98101',
-    country: 'United States',
+    street: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: '',
   },
-  favoriteBird: 'Peregrine Falcon',
-  cameraGear: 'Nikon D850 with 200-500mm f/5.6',
-  socialWebsite: 'https://birdwatchers.example.org',
-  socialTwitter: '@alex_flyway',
-  socialInstagram: '@alex_birder',
+  favoriteBird: '',
+  cameraGear: '',
+  socialWebsite: '',
+  socialTwitter: '',
+  socialInstagram: '',
   emailNotifications: {
     migrationAlerts: true,
     communityActivity: true,
     weeklyDigest: false,
-  },
-  privacyMode: 'public',
-};
-
-export const INITIAL_USER_PAID: User = {
-  id: 'usr_002',
-  name: 'Dr. Sarah Lin',
-  email: 'sarah.lin@ornithology.org',
-  phone: '+1 (555) 876-5432',
-  avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
-  region: 'North America',
-  tier: 'paid',
-  sightingsCount: 84,
-  rareSpeciesCount: 19,
-  points: 8900,
-  badges: ['VIP Flyway Sentinel', 'Golden Eagle Observer', 'Hotspot Pioneer', 'Coordinates Master'],
-  bio: 'Field ornithologist and migration researcher tracking trans-continental flyways.',
-  joinedDate: 'January 2024',
-  address: {
-    street: '1200 San Antonio Rd',
-    city: 'Palo Alto',
-    state: 'CA',
-    postalCode: '94303',
-    country: 'United States',
-  },
-  favoriteBird: 'Arctic Tern',
-  cameraGear: 'Sony A1 with 600mm f/4 GM OSS',
-  socialWebsite: 'https://sarahlin-ornithology.org',
-  socialTwitter: '@drsarahlin',
-  socialInstagram: '@sarahlin_wildlife',
-  emailNotifications: {
-    migrationAlerts: true,
-    communityActivity: true,
-    weeklyDigest: true,
   },
   privacyMode: 'public',
 };
@@ -424,387 +390,137 @@ export const HOTSPOTS: Hotspot[] = [
   }
 ];
 
-export const INITIAL_SIGHTINGS: Sighting[] = [
-  {
-    id: 'sg_101',
-    userId: 'usr_002',
-    userName: 'Dr. Sarah Lin',
-    userAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
-    userTier: 'paid',
-    speciesId: 'sp_arctic_tern',
-    speciesName: 'Arctic Tern',
-    scientificName: 'Sterna paradisaea',
-    latitude: 43.65,
-    longitude: -70.25,
-    locationName: 'Portland Head Light, Maine, USA',
-    region: 'North America',
-    timestamp: '2 hours ago',
-    photoUrl: 'https://images.unsplash.com/photo-1551085254-e96b210df58a?auto=format&fit=crop&q=80&w=800',
-    flockCount: 42,
-    behavior: 'flying',
-    notes: 'Flock resting on coastal rocks before ocean crossing. High flight energy, feeding on sand eels.',
-    verified: true,
-    likesCount: 28,
-    likedByMe: true,
-    comments: [
-      {
-        id: 'cm_1',
-        userId: 'usr_003',
-        userName: 'Mateo Rossi',
-        userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300',
-        content: 'Unbelievable flight stamina! We spotted a satellite tagged specimen nearby last week.',
-        timestamp: '1 hour ago'
-      }
-    ]
-  },
-  {
-    id: 'sg_102',
-    userId: 'usr_004',
-    userName: 'Elena Rostova',
-    userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=300',
-    userTier: 'paid',
-    speciesId: 'sp_stork',
-    speciesName: 'White Stork',
-    scientificName: 'Ciconia ciconia',
-    latitude: 36.01,
-    longitude: -5.60,
-    locationName: 'Tarifa Strait Lookout, Spain',
-    region: 'Europe',
-    timestamp: '5 hours ago',
-    photoUrl: 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?auto=format&fit=crop&q=80&w=800',
-    flockCount: 310,
-    behavior: 'flying',
-    notes: 'Massive thermal soaring event over Gibraltar! Thermal currents pushed them up 1,200m before sea crossing.',
-    verified: true,
-    likesCount: 45,
-    likedByMe: false,
-    isHotspotExclusive: true,
-    hotspotName: 'Strait of Gibraltar Migration Chokepoint',
-    comments: []
-  },
-  {
-    id: 'sg_103',
-    userId: 'usr_001',
-    userName: 'Alex Rivera',
-    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300',
-    userTier: 'free',
-    speciesId: 'sp_osprey',
-    speciesName: 'Osprey (Fish Hawk)',
-    scientificName: 'Pandion haliaetus',
-    latitude: 38.93,
-    longitude: -74.96,
-    locationName: 'Cape May Coastal Marsh, New Jersey, USA',
-    region: 'North America',
-    timestamp: '1 day ago',
-    photoUrl: 'https://images.unsplash.com/photo-1606567595334-d39972c85dbe?auto=format&fit=crop&q=80&w=800',
-    flockCount: 3,
-    behavior: 'feeding',
-    notes: 'Caught a fresh flounder right off the estuary! Diving from 25m height.',
-    verified: true,
-    likesCount: 19,
-    likedByMe: false,
-    comments: []
-  },
-  {
-    id: 'sg_104',
-    userId: 'usr_005',
-    userName: 'Kenji Takahashi',
-    userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300',
-    userTier: 'paid',
-    speciesId: 'sp_godwit',
-    speciesName: 'Bar-tailed Godwit',
-    scientificName: 'Limosa lapponica',
-    latitude: -36.84,
-    longitude: 174.76,
-    locationName: 'Firth of Thames, New Zealand',
-    region: 'Asia-Pacific',
-    timestamp: '2 days ago',
-    photoUrl: 'https://images.unsplash.com/photo-1618172193763-c511deb635ca?auto=format&fit=crop&q=80&w=800',
-    flockCount: 180,
-    behavior: 'resting',
-    notes: 'Flock arrived directly after 9 days non-stop flight from Alaska! Plumage in full transition.',
-    verified: true,
-    likesCount: 62,
-    likedByMe: true,
-    comments: []
-  },
-  {
-    id: 'sg_105',
-    userId: 'usr_001',
-    userName: 'Alex Rivera',
-    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300',
-    userTier: 'free',
-    speciesId: 'sp_sandhill_crane',
-    speciesName: 'Sandhill Crane',
-    scientificName: 'Antigone canadensis',
-    latitude: 40.71,
-    longitude: -99.08,
-    locationName: 'Platte River Valley, Kearney, NE, USA',
-    region: 'North America',
-    timestamp: '3 days ago',
-    photoUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=800',
-    flockCount: 1450,
-    behavior: 'resting',
-    notes: 'Massive sunset gathering along the sandbars. Bugling calls audible from over 2 miles away!',
-    verified: true,
-    likesCount: 34,
-    likedByMe: false,
-    comments: []
-  },
-  {
-    id: 'sg_106',
-    userId: 'usr_001',
-    userName: 'Alex Rivera',
-    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300',
-    userTier: 'free',
-    speciesId: 'sp_hummingbird',
-    speciesName: 'Ruby-throated Hummingbird',
-    scientificName: 'Archilochus colubris',
-    latitude: 47.60,
-    longitude: -122.33,
-    locationName: 'Discovery Park Coastal Bluff, Seattle, WA, USA',
-    region: 'North America',
-    timestamp: '4 days ago',
-    photoUrl: 'https://images.unsplash.com/photo-1520808663317-647b476a81b9?auto=format&fit=crop&q=80&w=800',
-    flockCount: 1,
-    behavior: 'feeding',
-    notes: 'Single male feeding at wild honeysuckle before evening roost. High hover frequency.',
-    verified: true,
-    likesCount: 22,
-    likedByMe: false,
-    comments: []
-  },
-  // Additional worldwide sightings across global flyways
-  {
-    id: 'sg_107',
-    userId: 'usr_002',
-    userName: 'Dr. Sarah Lin',
-    userAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
-    userTier: 'paid',
-    speciesId: 'sp_arctic_tern',
-    speciesName: 'Arctic Tern',
-    scientificName: 'Sterna paradisaea',
-    latitude: 64.14,
-    longitude: -21.94,
-    locationName: 'Reykjavik Coastal Cliffs, Iceland',
-    region: 'Europe',
-    timestamp: '5 hours ago',
-    photoUrl: 'https://images.unsplash.com/photo-1551085254-e96b210df58a?auto=format&fit=crop&q=80&w=800',
-    flockCount: 120,
-    behavior: 'flying',
-    notes: 'Active nesting activity and high-speed ocean foraging passes.',
-    verified: true,
-    likesCount: 15,
-    likedByMe: false,
-    comments: []
-  },
-  {
-    id: 'sg_108',
-    userId: 'usr_004',
-    userName: 'Elena Rostova',
-    userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=300',
-    userTier: 'paid',
-    speciesId: 'sp_stork',
-    speciesName: 'White Stork',
-    scientificName: 'Ciconia ciconia',
-    latitude: 52.52,
-    longitude: 13.40,
-    locationName: 'Brandenburg Wetlands, Germany',
-    region: 'Europe',
-    timestamp: '6 hours ago',
-    photoUrl: 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?auto=format&fit=crop&q=80&w=800',
-    flockCount: 88,
-    behavior: 'resting',
-    notes: 'Pre-migration staging flock gathered on chimney platforms.',
-    verified: true,
-    likesCount: 29,
-    likedByMe: false,
-    comments: []
-  },
-  {
-    id: 'sg_109',
-    userId: 'usr_006',
-    userName: 'Marcus Vance',
-    userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300',
-    userTier: 'paid',
-    speciesId: 'sp_peregrine',
-    speciesName: 'Peregrine Falcon',
-    scientificName: 'Falco peregrinus',
-    latitude: 41.96,
-    longitude: -82.51,
-    locationName: 'Point Pelee Tip, Ontario, Canada',
-    region: 'North America',
-    timestamp: '12 hours ago',
-    photoUrl: 'https://images.unsplash.com/photo-1606567595334-d39972c85dbe?auto=format&fit=crop&q=80&w=800',
-    flockCount: 8,
-    behavior: 'flying',
-    notes: 'Multiple raptors hunting migrating warblers over the sand spit.',
-    verified: true,
-    likesCount: 37,
-    likedByMe: false,
-    comments: []
-  },
-  {
-    id: 'sg_110',
-    userId: 'usr_005',
-    userName: 'Kenji Takahashi',
-    userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300',
-    userTier: 'paid',
-    speciesId: 'sp_godwit',
-    speciesName: 'Bar-tailed Godwit',
-    scientificName: 'Limosa lapponica',
-    latitude: 31.23,
-    longitude: 121.47,
-    locationName: 'Chongming Dongtan Tidal Mudflat, Shanghai, China',
-    region: 'Asia-Pacific',
-    timestamp: '1 day ago',
-    photoUrl: 'https://images.unsplash.com/photo-1618172193763-c511deb635ca?auto=format&fit=crop&q=80&w=800',
-    flockCount: 460,
-    behavior: 'feeding',
-    notes: 'Spectacular staging flock actively probing for polychaetes along the Yellow Sea rim.',
-    verified: true,
-    likesCount: 51,
-    likedByMe: true,
-    comments: []
-  },
-  {
-    id: 'sg_111',
-    userId: 'usr_005',
-    userName: 'Kenji Takahashi',
-    userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300',
-    userTier: 'paid',
-    speciesId: 'sp_spoon_billed_sandpiper',
-    speciesName: 'Spoon-billed Sandpiper',
-    scientificName: 'Calidris pygmaea',
-    latitude: 29.11,
-    longitude: 116.02,
-    locationName: 'Poyang Lake Delta, Jiangxi, China',
-    region: 'Asia-Pacific',
-    timestamp: '2 days ago',
-    photoUrl: 'https://images.unsplash.com/photo-1618172193763-c511deb635ca?auto=format&fit=crop&q=80&w=800',
-    flockCount: 3,
-    behavior: 'feeding',
-    notes: 'Ultra-rare individual spotted with color ring flagging! Feeding in shallow lakebed.',
-    verified: true,
-    likesCount: 94,
-    likedByMe: true,
-    comments: []
-  },
-  {
-    id: 'sg_112',
-    userId: 'usr_007',
-    userName: 'Lukas Schmidt',
-    userAvatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=300',
-    userTier: 'free',
-    speciesId: 'sp_stork',
-    speciesName: 'White Stork',
-    scientificName: 'Ciconia ciconia',
-    latitude: 9.03,
-    longitude: 38.74,
-    locationName: 'Great Rift Valley Lakes Corridor, Ethiopia',
-    region: 'Africa',
-    timestamp: '3 days ago',
-    photoUrl: 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?auto=format&fit=crop&q=80&w=800',
-    flockCount: 650,
-    behavior: 'flying',
-    notes: 'Massive southward stream using thermal lift over the escarpment.',
-    verified: true,
-    likesCount: 42,
-    likedByMe: false,
-    comments: []
-  },
-  {
-    id: 'sg_113',
-    userId: 'usr_002',
-    userName: 'Dr. Sarah Lin',
-    userAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
-    userTier: 'paid',
-    speciesId: 'sp_arctic_tern',
-    speciesName: 'Arctic Tern',
-    scientificName: 'Sterna paradisaea',
-    latitude: -33.92,
-    longitude: 18.42,
-    locationName: 'Cape Point Oceanic Reserve, South Africa',
-    region: 'Africa',
-    timestamp: '4 days ago',
-    photoUrl: 'https://images.unsplash.com/photo-1551085254-e96b210df58a?auto=format&fit=crop&q=80&w=800',
-    flockCount: 75,
-    behavior: 'flying',
-    notes: 'South Atlantic pelagic corridor transit. Diving into surf break.',
-    verified: true,
-    likesCount: 31,
-    likedByMe: false,
-    comments: []
-  },
-  {
-    id: 'sg_114',
-    userId: 'usr_003',
-    userName: 'Mateo Rossi',
-    userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300',
-    userTier: 'free',
-    speciesId: 'sp_sandhill_crane',
-    speciesName: 'Sandhill Crane',
-    scientificName: 'Antigone canadensis',
-    latitude: 33.82,
-    longitude: -106.88,
-    locationName: 'Bosque del Apache Marshlands, New Mexico, USA',
-    region: 'North America',
-    timestamp: '5 days ago',
-    photoUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=800',
-    flockCount: 820,
-    behavior: 'resting',
-    notes: 'Morning fly-out from roost ponds. Golden dawn light.',
-    verified: true,
-    likesCount: 38,
-    likedByMe: false,
-    comments: []
-  },
-  {
-    id: 'sg_115',
-    userId: 'usr_006',
-    userName: 'Marcus Vance',
-    userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300',
-    userTier: 'paid',
-    speciesId: 'sp_osprey',
-    speciesName: 'Osprey (Fish Hawk)',
-    scientificName: 'Pandion haliaetus',
-    latitude: 25.76,
-    longitude: -80.19,
-    locationName: 'Biscayne Bay Lagoon, Florida, USA',
-    region: 'North America',
-    timestamp: '6 days ago',
-    photoUrl: 'https://images.unsplash.com/photo-1606567595334-d39972c85dbe?auto=format&fit=crop&q=80&w=800',
-    flockCount: 4,
-    behavior: 'feeding',
-    notes: 'Active diving on mullet schools in shallow flats.',
-    verified: true,
-    likesCount: 20,
-    likedByMe: false,
-    comments: []
-  }
-];
+export const INITIAL_SIGHTINGS: Sighting[] = [];
 
 export const LEADERBOARD_DATA: Record<string, LeaderboardEntry[]> = {
-  'Global': [
-    { rank: 1, userId: 'usr_002', name: 'Dr. Sarah Lin', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300', region: 'North America', sightings: 84, rareCount: 19, tier: 'paid', badgeTitle: 'Golden Eagle Sentinel', rewardUnlocked: '1 Year Free Premium Hotspot Access' },
-    { rank: 2, userId: 'usr_004', name: 'Elena Rostova', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=300', region: 'Europe', sightings: 72, rareCount: 15, tier: 'paid', badgeTitle: 'Gibraltar Master Observer', rewardUnlocked: 'Exclusive Optics Gear Voucher' },
-    { rank: 3, userId: 'usr_005', name: 'Kenji Takahashi', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300', region: 'Asia-Pacific', sightings: 68, rareCount: 14, tier: 'paid', badgeTitle: 'Pacific Flyway Ranger', rewardUnlocked: 'Field Ornithology Research Grant' },
-    { rank: 4, userId: 'usr_006', name: 'Marcus Vance', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300', region: 'North America', sightings: 51, rareCount: 9, tier: 'paid', badgeTitle: 'Mississippi Flyway Tracker', rewardUnlocked: 'VIP Hotspot Badge' },
-    { rank: 5, userId: 'usr_001', name: 'Alex Rivera (You)', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300', region: 'North America', sightings: 12, rareCount: 3, tier: 'free', badgeTitle: 'Rising Falcon Spotter', rewardUnlocked: '3 Sightings away from Free VIP Pass!' }
-  ],
-  'North America': [
-    { rank: 1, userId: 'usr_002', name: 'Dr. Sarah Lin', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300', region: 'North America', sightings: 84, rareCount: 19, tier: 'paid', badgeTitle: 'Golden Eagle Sentinel', rewardUnlocked: '1 Year Free Premium Hotspot Access' },
-    { rank: 2, userId: 'usr_006', name: 'Marcus Vance', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300', region: 'North America', sightings: 51, rareCount: 9, tier: 'paid', badgeTitle: 'Mississippi Flyway Tracker', rewardUnlocked: 'VIP Hotspot Badge' },
-    { rank: 3, userId: 'usr_001', name: 'Alex Rivera (You)', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300', region: 'North America', sightings: 12, rareCount: 3, tier: 'free', badgeTitle: 'Rising Falcon Spotter', rewardUnlocked: '3 Sightings away from Free VIP Pass!' }
-  ],
-  'Europe': [
-    { rank: 1, userId: 'usr_004', name: 'Elena Rostova', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=300', region: 'Europe', sightings: 72, rareCount: 15, tier: 'paid', badgeTitle: 'Gibraltar Master Observer', rewardUnlocked: 'Exclusive Optics Gear Voucher' },
-    { rank: 2, userId: 'usr_007', name: 'Lukas Schmidt', avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=300', region: 'Europe', sightings: 44, rareCount: 8, tier: 'free', badgeTitle: 'Alps Osprey Guardian', rewardUnlocked: 'Pro Observer Pin' }
-  ],
-  'Asia-Pacific': [
-    { rank: 1, userId: 'usr_005', name: 'Kenji Takahashi', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300', region: 'Asia-Pacific', sightings: 68, rareCount: 14, tier: 'paid', badgeTitle: 'Pacific Flyway Ranger', rewardUnlocked: 'Field Ornithology Research Grant' }
-  ]
+  'Global': [],
+  'North America': [],
+  'Europe': [],
+  'Asia-Pacific': [],
 };
+
+export function buildLeaderboardData(
+  sightings: Sighting[],
+  currentUser?: User
+): Record<string, LeaderboardEntry[]> {
+  const result: Record<string, LeaderboardEntry[]> = {
+    'Global': [],
+    'North America': [],
+    'Europe': [],
+    'Asia-Pacific': [],
+  };
+
+  // Build real user sightings map
+  const userMap = new Map<string, {
+    userId: string;
+    name: string;
+    avatar: string;
+    region: string;
+    tier: 'free' | 'paid';
+    sightings: number;
+    rareCount: number;
+  }>();
+
+  if (Array.isArray(sightings)) {
+    for (const s of sightings) {
+      if (!s) continue;
+      const uId = s.userId || 'anonymous';
+      const isRare = s.isRareSpecies || isRareOrExtinctSpecies(undefined, s.speciesName, s.scientificName);
+      const existing = userMap.get(uId);
+      if (!existing) {
+        userMap.set(uId, {
+          userId: uId,
+          name: s.userName || 'Anonymous Observer',
+          avatar: s.userAvatar || '',
+          region: s.region || 'Global',
+          tier: s.userTier || 'free',
+          sightings: 1,
+          rareCount: isRare ? 1 : 0,
+        });
+      } else {
+        existing.sightings += 1;
+        if (isRare) existing.rareCount += 1;
+        if (!existing.avatar && s.userAvatar) existing.avatar = s.userAvatar;
+      }
+    }
+  }
+
+  // Include current logged-in user if they have recorded sightings but none in this list yet
+  if (currentUser && currentUser.id && currentUser.id !== 'guest' && !userMap.has(currentUser.id) && currentUser.sightingsCount > 0) {
+    userMap.set(currentUser.id, {
+      userId: currentUser.id,
+      name: currentUser.name || 'Observer',
+      avatar: currentUser.avatar || '',
+      region: currentUser.region || 'Global',
+      tier: currentUser.tier,
+      sightings: currentUser.sightingsCount,
+      rareCount: currentUser.rareSpeciesCount || 0,
+    });
+  }
+
+  if (userMap.size === 0) {
+    return result;
+  }
+
+  const allUsers = Array.from(userMap.values()).sort((a, b) => {
+    if (b.sightings !== a.sightings) return b.sightings - a.sightings;
+    return b.rareCount - a.rareCount;
+  });
+
+  const getBadgeTitle = (sightingsCount: number, tier: string) => {
+    if (tier === 'paid') return 'VIP Flyway Sentinel';
+    if (sightingsCount >= 30) return 'Gold Flyway Ambassador';
+    if (sightingsCount >= 15) return 'Silver Sentinel';
+    if (sightingsCount >= 5) return 'Bronze Observer';
+    return 'Field Observer';
+  };
+
+  const getRewardUnlocked = (sightingsCount: number) => {
+    if (sightingsCount >= 30) return 'Featured Birder Profile';
+    if (sightingsCount >= 15) return 'VIP Hotspot Pass';
+    if (sightingsCount >= 5) return 'Observer Badge';
+    return `${Math.max(1, 5 - sightingsCount)} sightings to Bronze`;
+  };
+
+  // Global ranking
+  result['Global'] = allUsers.map((u, idx) => {
+    const isMe = currentUser && u.userId === currentUser.id;
+    return {
+      rank: idx + 1,
+      userId: u.userId,
+      name: isMe ? `${u.name} (You)` : u.name,
+      avatar: u.avatar,
+      region: u.region,
+      sightings: u.sightings,
+      rareCount: u.rareCount,
+      tier: u.tier,
+      badgeTitle: getBadgeTitle(u.sightings, u.tier),
+      rewardUnlocked: getRewardUnlocked(u.sightings),
+    };
+  });
+
+  // Regional ranking
+  for (const reg of ['North America', 'Europe', 'Asia-Pacific']) {
+    const regionalUsers = allUsers.filter((u) => u.region === reg);
+    result[reg] = regionalUsers.map((u, idx) => {
+      const isMe = currentUser && u.userId === currentUser.id;
+      return {
+        rank: idx + 1,
+        userId: u.userId,
+        name: isMe ? `${u.name} (You)` : u.name,
+        avatar: u.avatar,
+        region: u.region,
+        sightings: u.sightings,
+        rareCount: u.rareCount,
+        tier: u.tier,
+        badgeTitle: getBadgeTitle(u.sightings, u.tier),
+        rewardUnlocked: getRewardUnlocked(u.sightings),
+      };
+    });
+  }
+
+  return result;
+}
 
 export const REWARD_MILESTONES: RewardMilestone[] = [
   {

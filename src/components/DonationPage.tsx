@@ -929,7 +929,13 @@ Thank you for protecting international flyways and endangered migratory birds!
             </p>
 
             <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-              {patrons.slice(0, 8).map((patron) => (
+              {patrons.length === 0 ? (
+                <div className="p-6 rounded-xl bg-[rgba(237,238,239,0.02)] border border-dashed border-[rgba(237,238,239,0.1)] text-center space-y-2">
+                  <p className="text-xs text-[#edeeef]/70 font-medium">No donations recorded yet</p>
+                  <p className="text-[11px] text-[#edeeef]/40">Be the first patron to support open flyway tracking infrastructure!</p>
+                </div>
+              ) : (
+                patrons.slice(0, 8).map((patron) => (
                 <div
                   key={patron.id}
                   className="p-3 rounded-xl bg-[rgba(237,238,239,0.02)] border border-[rgba(237,238,239,0.07)] text-xs space-y-1 hover:border-[#00ffaa]/30 transition-colors"
@@ -954,7 +960,8 @@ Thank you for protecting international flyways and endangered migratory birds!
                     </p>
                   )}
                 </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 

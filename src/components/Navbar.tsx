@@ -15,7 +15,7 @@ interface NavbarProps {
   onOpenAiScanner?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({
+const NavbarComponent: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   currentUser,
@@ -310,3 +310,5 @@ export const Navbar: React.FC<NavbarProps> = ({
     </>
   );
 };
+
+export const Navbar = React.memo(NavbarComponent);

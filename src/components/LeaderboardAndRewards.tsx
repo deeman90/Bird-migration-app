@@ -11,7 +11,7 @@ interface LeaderboardAndRewardsProps {
   onUpgradeToPro: () => void;
 }
 
-export const LeaderboardAndRewards: React.FC<LeaderboardAndRewardsProps> = ({
+const LeaderboardAndRewardsComponent: React.FC<LeaderboardAndRewardsProps> = ({
   leaderboardData,
   rewardMilestones,
   currentUser,
@@ -265,7 +265,20 @@ export const LeaderboardAndRewards: React.FC<LeaderboardAndRewardsProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {currentLeaderboard.map((usr) => {
+              {currentLeaderboard.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 px-4 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-2 text-slate-400">
+                      <Trophy className="w-8 h-8 text-amber-500/40" />
+                      <p className="font-semibold text-slate-200">No ranked observers in {selectedRegion} yet</p>
+                      <p className="text-xs text-slate-400 max-w-sm">
+                        Log your verified bird observations to take the #1 spot on this region's leaderboard!
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                currentLeaderboard.map((usr) => {
                 const isCurrentUser = usr.userId === currentUser.id || usr.name.includes('(You)');
 
                 return (
@@ -308,7 +321,8 @@ export const LeaderboardAndRewards: React.FC<LeaderboardAndRewardsProps> = ({
                     </td>
                   </tr>
                 );
-              })}
+              })
+              )}
             </tbody>
           </table>
         </div>
@@ -316,3 +330,5 @@ export const LeaderboardAndRewards: React.FC<LeaderboardAndRewardsProps> = ({
     </div>
   );
 };
+
+export const LeaderboardAndRewards = React.memo(LeaderboardAndRewardsComponent);

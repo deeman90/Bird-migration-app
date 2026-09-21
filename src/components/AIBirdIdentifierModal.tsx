@@ -20,21 +20,13 @@ interface AIBirdIdentifierModalProps {
   }) => void;
 }
 
-const SAMPLE_SCAN_PHOTOS = [
-  { name: 'Sandhill Crane', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=800' },
-  { name: 'Osprey (Raptor)', url: 'https://images.unsplash.com/photo-1606567595334-d39972c85dbe?auto=format&fit=crop&q=80&w=800' },
-  { name: 'White Stork', url: 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?auto=format&fit=crop&q=80&w=800' },
-  { name: 'Ruby-throated Hummingbird', url: 'https://images.unsplash.com/photo-1520808663317-647b476a81b9?auto=format&fit=crop&q=80&w=800' },
-  { name: 'Arctic Tern', url: 'https://images.unsplash.com/photo-1551085254-e96b210df58a?auto=format&fit=crop&q=80&w=800' },
-];
-
 export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
   isOpen,
   onClose,
   speciesList,
   onSelectForSighting,
 }) => {
-  const [photoUrl, setPhotoUrl] = useState<string>(SAMPLE_SCAN_PHOTOS[0].url);
+  const [photoUrl, setPhotoUrl] = useState<string>('');
   const [customPhotoInput, setCustomPhotoInput] = useState<string>('');
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -253,34 +245,16 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
                 )}
               </div>
 
-              {/* Sample Presets & Upload */}
-              <div className="sm:col-span-2 space-y-3 flex flex-col justify-between">
-                <div>
-                  <span className="font-mono-code text-[10px] text-[#edeeef]/50 uppercase tracking-widest block mb-1.5">
-                    Field Photo Presets:
+              {/* Upload or URL */}
+              <div className="sm:col-span-2 space-y-3 flex flex-col justify-center">
+                <div className="p-3.5 rounded-lg border border-[rgba(237,238,239,0.1)] bg-[rgba(237,238,239,0.02)] space-y-1.5">
+                  <span className="font-mono-code text-[11px] text-[#00ffaa] font-semibold flex items-center space-x-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#00ffaa]" />
+                    <span>Upload Your Bird Observation</span>
                   </span>
-                  <div className="grid grid-cols-5 gap-1.5">
-                    {SAMPLE_SCAN_PHOTOS.map((sample, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setCustomPhotoInput('');
-                          setPhotoUrl(sample.url);
-                          setAiResult(null);
-                        }}
-                        className={`relative aspect-square rounded overflow-hidden border transition-all ${
-                          photoUrl === sample.url && !customPhotoInput
-                            ? 'border-[#00ffaa] ring-2 ring-[#00ffaa]/50'
-                            : 'border-[rgba(237,238,239,0.1)] opacity-70 hover:opacity-100'
-                        }`}
-                      >
-                        {sample.url ? (
-                          <img src={sample.url} alt={sample.name} className="w-full h-full object-cover" />
-                        ) : null}
-                      </button>
-                    ))}
-                  </div>
+                  <p className="text-xs text-[#edeeef]/70 leading-relaxed">
+                    Upload an image file from your camera or paste an image URL. Our AI will analyze feather markings, beak morphology, and silhouette to identify the species.
+                  </p>
                 </div>
 
                 {/* Upload or URL */}

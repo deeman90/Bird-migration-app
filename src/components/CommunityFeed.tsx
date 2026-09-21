@@ -38,7 +38,7 @@ interface CommunityFeedProps {
   isRefreshingSightings?: boolean;
 }
 
-export const CommunityFeed: React.FC<CommunityFeedProps> = ({
+const CommunityFeedComponent: React.FC<CommunityFeedProps> = ({
   sightings,
   currentUser,
   sessionUserId,
@@ -630,3 +630,5 @@ export const CommunityFeed: React.FC<CommunityFeedProps> = ({
 </div>
 );
 };
+
+export const CommunityFeed = React.memo(CommunityFeedComponent);

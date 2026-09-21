@@ -600,40 +600,7 @@ app.post(['/api/validate-bird-image', '/validate-bird-image'], aiRateLimiter, as
       });
     }
 
-    // 2. Known built-in sample bird photos bypass
-    const isBuiltInSamplePhoto =
-      typeof photoUrl === 'string' &&
-      (photoUrl.includes('photo-1551085254') ||
-        photoUrl.includes('photo-1606567595') ||
-        photoUrl.includes('photo-1618172193') ||
-        photoUrl.includes('photo-1596704017') ||
-        photoUrl.includes('photo-1520808663') ||
-        photoUrl.includes('photo-1518709268') ||
-        photoUrl.includes('photo-1579899338'));
-
-    if (isBuiltInSamplePhoto) {
-      return res.json({
-        success: true,
-        isValid: true,
-        isBird: true,
-        detectedSubject: 'Avian Specimen (Verified Bird)',
-        commonName: 'Verified Bird',
-        confidenceScore: 98,
-      });
-    }
-
-    // Fast check for known non-bird demo images
-    if (typeof photoUrl === 'string' && (photoUrl.includes('photo-1543466835-00a7907e9de1') || photoUrl.toLowerCase().includes('non-bird'))) {
-      return res.json({
-        success: false,
-        isValid: false,
-        isBird: false,
-        detectedSubject: 'Domestic Dog (Canis lupus familiaris)',
-        error: '🚫 Non-Bird Image Rejected: The uploaded image depicts a domestic dog, not a bird. Only photographs of birds can be uploaded.',
-      });
-    }
-
-    // 3. Gemini Vision model check
+    // 2. Gemini Vision model check
     const ai = getGeminiClient();
     const imagePart = await getImagePart(photoUrl, base64Image);
 
@@ -1151,42 +1118,6 @@ app.post(['/api/verify-image-authenticity', '/verify-image-authenticity'], aiRat
       });
     }
 
-    // Built-in sample / demo bird & bat photos provided by the platform
-    const isBuiltInSamplePhoto =
-      typeof photoUrl === 'string' &&
-      (photoUrl.includes('photo-1551085254') ||
-        photoUrl.includes('photo-1606567595') ||
-        photoUrl.includes('photo-1618172193') ||
-        photoUrl.includes('photo-1596704017') ||
-        photoUrl.includes('photo-1520808663') ||
-        photoUrl.includes('photo-1518709268') ||
-        photoUrl.includes('photo-1579899338') ||
-        photoUrl.includes('photo-1574063413132') ||
-        photoUrl.includes('photo-1509198397868') ||
-        photoUrl.toLowerCase().includes('bat'));
-
-    if (isBuiltInSamplePhoto) {
-      const isBat = typeof photoUrl === 'string' && (photoUrl.includes('photo-1574063413132') || photoUrl.includes('photo-1509198397868') || photoUrl.toLowerCase().includes('bat'));
-      return res.json({
-        success: true,
-        data: {
-          isGenuinePhoto: true,
-          isBird: true,
-          isBat: isBat,
-          authenticityStatus: 'authentic_camera_photo',
-          deviceMake: clientExif?.make || 'Canon / Nikon / Sony / Apple',
-          deviceModel: clientExif?.model || (isBat ? 'Nocturnal Telephoto Camera' : 'Field Telephoto Camera'),
-          confidenceScore: 98,
-          imageQualityScore: 92,
-          isGoodQuality: true,
-          qualityBonus: 10,
-          qualityNotes: isBat
-            ? 'Verified authentic bat specimen capture (Order Chiroptera exception, +10 Bonus Points awarded)'
-            : 'Verified authentic field specimen capture (+10 Bonus Points awarded)',
-        },
-      });
-    }
-
     const hasMakeModel = clientExif && (clientExif.make || clientExif.model);
     const hasGps = clientExif && (clientExif.gpsLatitude !== undefined || clientExif.gpsLongitude !== undefined);
 
@@ -1359,54 +1290,6 @@ app.post(['/api/validate-bird-image', '/validate-bird-image'], aiRateLimiter, as
         isValid: false,
         isBird: false,
         error: 'A null or empty image cannot be uploaded. Please select a valid bird or bat photo.',
-      });
-    }
-
-    if (typeof photoUrl === 'string' && (photoUrl.includes('photo-1543466835-00a7907e9de1') || photoUrl.toLowerCase().includes('non-bird'))) {
-      return res.json({
-        isValid: false,
-        isBird: false,
-        isBat: false,
-        detectedSubject: 'Domestic Dog (Canis lupus familiaris)',
-        error: '🚫 Non-Bird/Non-Bat Image Rejected: The uploaded image depicts a domestic dog, not a bird or bat. Only photographs of birds and bats (permitted aerial exception) can be uploaded.',
-      });
-    }
-
-    const isBatPhoto = typeof photoUrl === 'string' && (
-      photoUrl.includes('photo-1574063413132') ||
-      photoUrl.includes('photo-1509198397868') ||
-      photoUrl.toLowerCase().includes('bat')
-    );
-
-    if (isBatPhoto) {
-      return res.json({
-        isValid: true,
-        isBird: true,
-        isBat: true,
-        detectedSubject: 'Mexican Free-tailed Bat (Chiroptera Exception)',
-        commonName: 'Mexican Free-tailed Bat',
-        confidenceScore: 97,
-      });
-    }
-
-    const isSampleBird = typeof photoUrl === 'string' && (
-      photoUrl.includes('photo-1551085254') ||
-      photoUrl.includes('photo-1606567595') ||
-      photoUrl.includes('photo-1618172193') ||
-      photoUrl.includes('photo-1596704017') ||
-      photoUrl.includes('photo-1520808663') ||
-      photoUrl.includes('photo-1518709268') ||
-      photoUrl.includes('photo-1579899338')
-    );
-
-    if (isSampleBird) {
-      return res.json({
-        isValid: true,
-        isBird: true,
-        isBat: false,
-        detectedSubject: 'Verified Bird',
-        commonName: 'Verified Bird',
-        confidenceScore: 98,
       });
     }
 
