@@ -9,7 +9,7 @@ import {
   buildLeaderboardData,
   MIGRATION_ROUTES,
   REWARD_MILESTONES,
-} from './data/mockData';
+} from './data/ornithologyData';
 import { Navbar } from './components/Navbar';
 import { InteractiveMap } from './components/InteractiveMap';
 import { SightingLogger } from './components/SightingLogger';
@@ -53,8 +53,38 @@ export type AppTab = 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth
 
 function isLegacyMockSighting(s: Sighting): boolean {
   if (!s || !s.id) return true;
-  if (s.id.startsWith('mock') || s.id.startsWith('demo_') || s.id.startsWith('st_init')) return true;
-  if (s.userName === 'Alex Rivera' || s.userId === 'usr_mock') return true;
+  const id = String(s.id).toLowerCase();
+  const userName = String(s.userName || '').toLowerCase();
+  const userId = String(s.userId || '').toLowerCase();
+  const species = String(s.speciesName || '').toLowerCase();
+  const notes = String(s.notes || '').toLowerCase();
+
+  if (id.startsWith('mock') || id.startsWith('demo_') || id.startsWith('st_init')) return true;
+  if (
+    userId === 'usr_001' ||
+    userId === 'test_user' ||
+    userId === 'test_check' ||
+    userId === 'anon_user' ||
+    userId === 'usr_service_test' ||
+    userId === 'usr_mock'
+  ) {
+    return true;
+  }
+  if (
+    userName.includes('alex rivera') ||
+    userName.includes('test birder') ||
+    userName.includes('inspector') ||
+    userName.includes('anon birder') ||
+    userName.includes('tester') ||
+    userName.includes('test observer')
+  ) {
+    return true;
+  }
+  if (species === 'test bird' || species === 'none' || species === 'robin') {
+    if (userId === 'test_user' || userName.includes('test')) return true;
+  }
+  if (notes.includes('service verification test') || notes.includes('updated notes')) return true;
+
   return false;
 }
 
@@ -199,14 +229,7 @@ export default function App() {
       if (Array.isArray(parsed)) {
         // Filter out any legacy mock sightings from localStorage
         const nonMock = parsed.filter(
-          (s) =>
-            s &&
-            s.id &&
-            !s.id.startsWith('mock') &&
-            !s.id.startsWith('demo_') &&
-            !s.id.startsWith('st_init') &&
-            s.userName !== 'Alex Rivera' &&
-            s.userId !== 'usr_mock'
+          (s) => s && s.id && !isLegacyMockSighting(s)
         );
         return nonMock.map((s) => ({
           ...s,

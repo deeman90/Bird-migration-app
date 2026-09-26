@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserTier } from '../types';
 import { X, User as UserIcon, ShieldCheck } from 'lucide-react';
-import { DEFAULT_USER } from '../data/mockData';
+import { DEFAULT_USER } from '../data/ornithologyData';
 
 interface AuthModalProps {
   isOpen: boolean;

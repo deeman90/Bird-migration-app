@@ -134,8 +134,43 @@ export async function fetchSightingsFromSupabase(): Promise<{ data: Sighting[] |
     }
 
     if (data) {
+      const cleanRows = data.filter((row) => {
+        const uName = String(row.user_name || '').toLowerCase();
+        const uId = String(row.user_id || '').toLowerCase();
+        const sp = String(row.bird_species || row.species_name || '').toLowerCase();
+        const notes = String(row.field_notes || row.notes || '').toLowerCase();
+
+        if (
+          uId === 'usr_001' ||
+          uId === 'test_user' ||
+          uId === 'test_check' ||
+          uId === 'anon_user' ||
+          uId === 'usr_service_test' ||
+          uId === 'usr_mock'
+        ) {
+          return false;
+        }
+
+        if (
+          uName.includes('alex rivera') ||
+          uName.includes('test birder') ||
+          uName.includes('inspector') ||
+          uName.includes('anon birder') ||
+          uName.includes('tester') ||
+          uName.includes('test observer')
+        ) {
+          return false;
+        }
+
+        if (sp === 'test bird' || notes.includes('service verification test') || notes.includes('updated notes')) {
+          return false;
+        }
+
+        return true;
+      });
+
       const sightings = await Promise.all(
-        data.map(async (row) => {
+        cleanRows.map(async (row) => {
           const sighting = mapRowToSighting(row);
           if (sighting.photoUrl && !sighting.photoUrl.startsWith('http') && !sighting.photoUrl.startsWith('data:')) {
             sighting.photoUrl = await getSignedStorageUrl(sighting.photoUrl);

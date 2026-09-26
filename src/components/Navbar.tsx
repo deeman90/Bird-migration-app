@@ -12,7 +12,6 @@ interface NavbarProps {
   onLogout?: () => void;
   onToggleUserTier?: () => void;
   onOpenAuthModal: () => void;
-  onOpenAiScanner?: () => void;
 }
 
 const NavbarComponent: React.FC<NavbarProps> = ({
@@ -23,7 +22,6 @@ const NavbarComponent: React.FC<NavbarProps> = ({
   onLogout,
   onToggleUserTier,
   onOpenAuthModal,
-  onOpenAiScanner,
 }) => {
   const navigate = useNavigate();
 
