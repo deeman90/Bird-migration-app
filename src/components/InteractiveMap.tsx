@@ -58,7 +58,7 @@ const InteractiveMapComponent: React.FC<InteractiveMapProps> = ({
     return Array.from(
       new Set(
         sightings
-          .map((s) => s.region || s.locationName.split(',').pop()?.trim())
+          .map((s) => s.region || (s.locationName ? s.locationName.split(',').pop()?.trim() : ''))
           .filter(Boolean) as string[]
       )
     ).sort();

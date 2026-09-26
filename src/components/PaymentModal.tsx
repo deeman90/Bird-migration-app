@@ -66,7 +66,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     'checkout' | 'processing' | 'otp_verification' | 'success' | 'manage'
   >('checkout');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [otpCode, setOtpCode] = useState('123456');
+  const [otpCode, setOtpCode] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [activeSubscription, setActiveSubscription] = useState<SubscriptionRecord | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -80,7 +80,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       if (currentUser.email) setEmail(currentUser.email);
       if (currentUser.name) setName(currentUser.name);
       if (currentUser.phone) setPhone(currentUser.phone);
-      setOtpCode('123456');
+      setOtpCode('');
 
       // Check if user is already a VIP subscriber
       if (currentUser.tier === 'paid') {
@@ -306,7 +306,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const handleVerifyOtp = (e: React.FormEvent) => {
     e.preventDefault();
-    const effectiveCode = otpCode.trim() || '123456';
+    const effectiveCode = otpCode.trim();
+    if (!effectiveCode) {
+      setErrorMessage('Please enter the 6-digit verification code.');
+      return;
+    }
     const txRef = `${provider.toUpperCase()}_TX_${Date.now().toString().slice(-6)}`;
     handleFinalizeSubscription(txRef);
   };
@@ -776,13 +780,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <label className="text-xs font-bold text-slate-300">
                   Enter Authorization OTP:
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setOtpCode('123456')}
-                  className="text-[11px] text-amber-400 hover:text-amber-300 underline font-mono cursor-pointer"
-                >
-                  Auto-fill Demo (123456)
-                </button>
               </div>
               <input
                 type="text"
@@ -790,7 +787,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 maxLength={6}
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value)}
-                placeholder="123456"
+                placeholder="••••••"
                 className="w-full text-center tracking-[0.5em] font-mono font-black text-xl bg-slate-950 border border-amber-500/50 focus:border-amber-400 rounded-2xl py-3 text-amber-400 placeholder:text-slate-700 focus:outline-none"
               />
             </div>

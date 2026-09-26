@@ -54,6 +54,7 @@ export interface BirdSpecies {
   commonName: string;
   scientificName: string;
   category: string;
+  isBat?: boolean;
   conservationStatus: 'Least Concern' | 'Near Threatened' | 'Vulnerable' | 'Endangered' | 'Critically Endangered' | 'Extinct in the Wild' | 'Extinct';
   image: string;
   flywayRegion: string;
@@ -122,6 +123,7 @@ export interface Sighting {
   imageHash?: string;
   isRareSpecies?: boolean;
   rareBonusEarned?: number;
+  isBat?: boolean;
 
   // Offline Sync Queue Metadata
   syncStatus?: 'synced' | 'pending' | 'syncing' | 'failed';

@@ -51,6 +51,13 @@ import { useTheme } from './context/ThemeContext';
 
 export type AppTab = 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings' | 'donate' | 'diagnostic';
 
+function isLegacyMockSighting(s: Sighting): boolean {
+  if (!s || !s.id) return true;
+  if (s.id.startsWith('mock') || s.id.startsWith('demo_') || s.id.startsWith('st_init')) return true;
+  if (s.userName === 'Alex Rivera' || s.userId === 'usr_mock') return true;
+  return false;
+}
+
 // Helper to merge remote sightings with local state & pending offline queue, sorted newest first
 function mergeSightings(existingList: Sighting[], remoteList: Sighting[]): Sighting[] {
   const pendingQueue = getPendingSightingsQueue();
@@ -60,14 +67,14 @@ function mergeSightings(existingList: Sighting[], remoteList: Sighting[]): Sight
 
   // 1. Add remote sightings from Supabase
   for (const s of remoteList) {
-    if (s && s.id) {
+    if (s && s.id && !isLegacyMockSighting(s)) {
       map.set(s.id, s);
     }
   }
 
   // 2. Add existing sightings (preserving locally logged user sightings that may not be in remote yet)
   for (const s of existingList) {
-    if (s && s.id) {
+    if (s && s.id && !isLegacyMockSighting(s)) {
       if (!map.has(s.id)) {
         map.set(s.id, s);
       } else {
@@ -84,7 +91,7 @@ function mergeSightings(existingList: Sighting[], remoteList: Sighting[]): Sight
 
   // 3. Add pending queue sightings (highest priority for offline status)
   for (const s of pendingSightings) {
-    if (s && s.id) {
+    if (s && s.id && !isLegacyMockSighting(s)) {
       map.set(s.id, { ...s, syncStatus: 'pending' });
     }
   }
@@ -188,7 +195,27 @@ export default function App() {
   const [sightings, setSightings] = useState<Sighting[]>(() => {
     try {
       const saved = localStorage.getItem('aerotrack_sightings');
-      return saved ? JSON.parse(saved) : INITIAL_SIGHTINGS;
+      const parsed = saved ? JSON.parse(saved) : INITIAL_SIGHTINGS;
+      if (Array.isArray(parsed)) {
+        // Filter out any legacy mock sightings from localStorage
+        const nonMock = parsed.filter(
+          (s) =>
+            s &&
+            s.id &&
+            !s.id.startsWith('mock') &&
+            !s.id.startsWith('demo_') &&
+            !s.id.startsWith('st_init') &&
+            s.userName !== 'Alex Rivera' &&
+            s.userId !== 'usr_mock'
+        );
+        return nonMock.map((s) => ({
+          ...s,
+          locationName: s?.locationName || s?.region || '',
+          speciesName: s?.speciesName || '',
+          comments: Array.isArray(s?.comments) ? s.comments : [],
+        }));
+      }
+      return INITIAL_SIGHTINGS;
     } catch {
       return INITIAL_SIGHTINGS;
     }
@@ -218,6 +245,16 @@ export default function App() {
   
   // AI Bird Scanner Modal State
   const [isAiScannerOpen, setIsAiScannerOpen] = useState<boolean>(false);
+  const [prefilledSightingData, setPrefilledSightingData] = useState<{
+    speciesName?: string;
+    scientificName?: string;
+    matchedSpeciesId?: string;
+    photoUrl?: string;
+    flockCount?: number;
+    behavior?: 'resting' | 'feeding' | 'flying' | 'nesting';
+    notes?: string;
+    isBat?: boolean;
+  } | null>(null);
 
   // Paystack & Flutterwave Payment Modal State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
@@ -764,7 +801,7 @@ export default function App() {
     } else {
       showToast(`✓ Logged sighting for ${newSighting.speciesName}! +${pointsAwarded} Points added.`, 'success');
     }
-    setActiveTab('map');
+    setActiveTab('feed');
   };
 
   // Like Sighting Handler
@@ -942,7 +979,9 @@ export default function App() {
             initialCoords={pickedCoords}
             onUpdateUser={(updatedUser) => setCurrentUser(updatedUser)}
             onOpenRestrictionModal={() => setIsRestrictionModalOpen(true)}
+            onOpenAiScanner={() => setIsAiScannerOpen(true)}
             existingSightings={sightings}
+            prefilledData={prefilledSightingData}
           />
         )}
 
@@ -1051,6 +1090,7 @@ export default function App() {
         onClose={() => setIsAiScannerOpen(false)}
         speciesList={BIRD_SPECIES_LIST}
         onSelectForSighting={(identifiedData) => {
+          setPrefilledSightingData(identifiedData);
           setActiveTab('log');
           showToast(`AI Identified ${identifiedData.speciesName}! Log details pre-populated.`, 'success');
         }}

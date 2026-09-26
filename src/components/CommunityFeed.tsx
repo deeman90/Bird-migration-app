@@ -464,7 +464,14 @@ const CommunityFeedComponent: React.FC<CommunityFeedProps> = ({
                 {/* Sighting Details */}
                 <div className="p-4 sm:p-5 flex flex-col justify-between space-y-3 bg-[rgba(237,238,239,0.02)]">
                   <div>
-                    <h3 className="font-syne font-extrabold text-lg sm:text-xl text-[#edeeef] tracking-tight">{s.speciesName}</h3>
+                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                      <h3 className="font-syne font-extrabold text-lg sm:text-xl text-[#edeeef] tracking-tight">{s.speciesName}</h3>
+                      {(s.isBat || s.speciesName.toLowerCase().includes('bat')) && (
+                        <span className="bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-mono-code px-2 py-0.5 rounded font-bold flex items-center space-x-1">
+                          <span>🦇 Bat Exception</span>
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-[#edeeef]/50 italic font-mono-code mt-0.5">{s.scientificName}</p>
 
                     <div className="mt-2.5 flex items-center space-x-1.5 text-xs font-mono-code text-[#00ffaa] bg-[#00ffaa]/10 p-2 rounded border border-[#00ffaa]/20">

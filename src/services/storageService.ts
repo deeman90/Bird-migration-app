@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { compressImageForUpload } from '../utils/imageOptimizer';
 
 export const BUCKET_NAME = 'app-files';
 
@@ -155,16 +156,32 @@ export async function uploadFileToSupabaseStorage({
         }
       }
 
-      const fileExt = file.name.split('.').pop() || 'jpg';
+      let fileToUpload = file;
+      if (file.type && file.type.startsWith('image/') && !file.type.includes('svg') && !file.type.includes('gif')) {
+        if (file.size > 350 * 1024) {
+          try {
+            fileToUpload = await compressImageForUpload(file, 1920, 0.85);
+            console.log(
+              `[Storage] Fast upload optimization: reduced ${(file.size / 1024).toFixed(0)}KB to ${(fileToUpload.size / 1024).toFixed(0)}KB`
+            );
+          } catch (cErr) {
+            console.warn('[Storage] Compression fallback to original file:', cErr);
+            fileToUpload = file;
+          }
+        }
+      }
+
+      const fileExt = fileToUpload.name.split('.').pop() || 'jpg';
       // Deterministic path based on active user and image fingerprint to prevent duplicate file objects
       const safeFingerprint = fingerprint.replace(/[^a-zA-Z0-9_-]/g, '_');
       const filePath = `${activeUserId}/${featureName}/shared/${safeFingerprint}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from(BUCKET_NAME)
-        .upload(filePath, file, {
+        .upload(filePath, fileToUpload, {
           cacheControl: '3600',
           upsert: true,
+          contentType: fileToUpload.type || 'image/jpeg',
         });
 
       if (uploadError) {

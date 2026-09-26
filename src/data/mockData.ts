@@ -214,6 +214,66 @@ export const BIRD_SPECIES_LIST: BirdSpecies[] = [
     description: 'Permitted aerial mammal exception. Celebrated solitary long-distance seasonal migrant traveling thousands of miles across North & South America.',
     averageFlockSize: 'Solitary aerial migrants',
     wingspanCm: 40
+  },
+  {
+    id: 'sp_big_brown_bat',
+    commonName: 'Big Brown Bat',
+    scientificName: 'Eptesicus fuscus',
+    category: 'Chiroptera (Microbat)',
+    conservationStatus: 'Least Concern',
+    image: 'https://images.unsplash.com/photo-1574063413132-355dbfd83e25?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'North American Flyways',
+    description: 'Permitted aerial mammal exception. Hardy insectivorous bat known for consuming agricultural crop pests and navigating via echolocation.',
+    averageFlockSize: 'Maternity colonies of 20 - 300',
+    wingspanCm: 35
+  },
+  {
+    id: 'sp_indiana_bat',
+    commonName: 'Indiana Bat',
+    scientificName: 'Myotis sodalis',
+    category: 'Chiroptera (Endangered Bat)',
+    conservationStatus: 'Endangered',
+    image: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'Eastern & Midwestern US Flyways',
+    description: 'Permitted aerial mammal exception. High-priority endangered species that hibernates in large cave clusters and forages along riparian river corridors.',
+    averageFlockSize: 'Winter hibernacula clusters',
+    wingspanCm: 27
+  },
+  {
+    id: 'sp_pallid_bat',
+    commonName: 'Pallid Bat',
+    scientificName: 'Antrozous pallidus',
+    category: 'Chiroptera (Desert Bat)',
+    conservationStatus: 'Least Concern',
+    image: 'https://images.unsplash.com/photo-1574063413132-355dbfd83e25?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'Western North American Arid Corridors',
+    description: 'Permitted aerial mammal exception. Pale desert bat with large ears capable of gleaning scorpions and insects directly from the ground surface.',
+    averageFlockSize: 'Roost colonies of 20 - 100',
+    wingspanCm: 38
+  },
+  {
+    id: 'sp_silver_haired_bat',
+    commonName: 'Silver-haired Bat',
+    scientificName: 'Lasionycteris noctivagans',
+    category: 'Chiroptera (Migratory Bat)',
+    conservationStatus: 'Least Concern',
+    image: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'Boreal & Temperate Forest Flyways',
+    description: 'Permitted aerial mammal exception. Beautiful silver-frosted forest bat that undertakes seasonal long-distance latitudinal migrations.',
+    averageFlockSize: 'Solitary seasonal migrants',
+    wingspanCm: 30
+  },
+  {
+    id: 'sp_common_pipistrelle',
+    commonName: 'Common Pipistrelle',
+    scientificName: 'Pipistrellus pipistrellus',
+    category: 'Chiroptera (Microbat)',
+    conservationStatus: 'Least Concern',
+    image: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&q=80&w=600',
+    flywayRegion: 'Palearctic & European Flyways',
+    description: 'Permitted aerial mammal exception. Tiny, highly agile bat that can consume up to 3,000 midges and mosquitoes in a single night.',
+    averageFlockSize: 'Maternity roosts of 50 - 200',
+    wingspanCm: 22
   }
 ];
 

@@ -100,7 +100,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [activeTab, setActiveTab] = useState<'profile' | 'address' | 'social' | 'notifications' | 'referral' | 'account' | 'theme'>('profile');
 
   // Local Form States initialized from currentUser
-  const [name, setName] = useState(currentUser.name || '');
+  const [name, setName] = useState(currentUser.name === 'Guest Observer' ? '' : (currentUser.name || ''));
   const [email, setEmail] = useState(currentUser.email || '');
   const [phone, setPhone] = useState(currentUser.phone || '');
   const [avatar, setAvatar] = useState(currentUser.avatar || '');
@@ -110,7 +110,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   // Referral Program States
   const defaultRefCode = currentUser.referralCode || `BMA-${(currentUser.name || 'BIRDER').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)}-${(currentUser.id || '777').slice(-4).toUpperCase()}`;
   const [referralCode, setReferralCode] = useState(defaultRefCode);
-  const [referredCount, setReferredCount] = useState(currentUser.referredCount || 3);
+  const [referredCount, setReferredCount] = useState(currentUser.referredCount || 0);
   const [hasCopied, setHasCopied] = useState(false);
   const [friendCodeInput, setFriendCodeInput] = useState('');
   const [referralStatusMsg, setReferralStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);

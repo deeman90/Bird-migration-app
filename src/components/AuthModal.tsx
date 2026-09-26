@@ -17,7 +17,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onSwitchUser,
 }) => {
   // Profile fields
-  const [name, setName] = useState<string>(currentUser.name || '');
+  const [name, setName] = useState<string>(currentUser.name === 'Guest Observer' ? '' : (currentUser.name || ''));
   const [email, setEmail] = useState<string>(currentUser.email || '');
   const [region, setRegion] = useState<string>(currentUser.region || 'North America');
   const [tier, setTier] = useState<UserTier>(currentUser.tier || 'free');

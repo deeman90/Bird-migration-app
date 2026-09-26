@@ -93,10 +93,10 @@ export const SightingsTable: React.FC<SightingsTableProps> = ({
       if (searchTerm.trim() !== '') {
         const query = searchTerm.toLowerCase();
         const matchesQuery =
-          s.speciesName.toLowerCase().includes(query) ||
+          (s.speciesName && s.speciesName.toLowerCase().includes(query)) ||
           (s.scientificName && s.scientificName.toLowerCase().includes(query)) ||
-          s.locationName.toLowerCase().includes(query) ||
-          s.userName.toLowerCase().includes(query) ||
+          (s.locationName && s.locationName.toLowerCase().includes(query)) ||
+          (s.userName && s.userName.toLowerCase().includes(query)) ||
           (s.region && s.region.toLowerCase().includes(query)) ||
           (s.notes && s.notes.toLowerCase().includes(query));
         if (!matchesQuery) return false;
