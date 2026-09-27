@@ -139,6 +139,19 @@ export async function fetchSightingsFromSupabase(): Promise<{ data: Sighting[] |
         const uId = String(row.user_id || '').toLowerCase();
         const sp = String(row.bird_species || row.species_name || '').toLowerCase();
         const notes = String(row.field_notes || row.notes || '').toLowerCase();
+        const rId = String(row.id || '').toLowerCase();
+        const loc = String(row.place_name || row.location_name || '').toLowerCase();
+
+        if (
+          rId.startsWith('mock') ||
+          rId.startsWith('demo_') ||
+          rId.startsWith('st_init') ||
+          rId.startsWith('test-') ||
+          rId.startsWith('test_') ||
+          rId.includes('test')
+        ) {
+          return false;
+        }
 
         if (
           uId === 'usr_001' ||
@@ -146,7 +159,10 @@ export async function fetchSightingsFromSupabase(): Promise<{ data: Sighting[] |
           uId === 'test_check' ||
           uId === 'anon_user' ||
           uId === 'usr_service_test' ||
-          uId === 'usr_mock'
+          uId === 'usr_mock' ||
+          uId === 'guest-field-tester' ||
+          uId.includes('tester') ||
+          uId.includes('test_')
         ) {
           return false;
         }
@@ -154,6 +170,7 @@ export async function fetchSightingsFromSupabase(): Promise<{ data: Sighting[] |
         if (
           uName.includes('alex rivera') ||
           uName.includes('test birder') ||
+          uName.includes('diagnostic tester') ||
           uName.includes('inspector') ||
           uName.includes('anon birder') ||
           uName.includes('tester') ||
@@ -162,7 +179,30 @@ export async function fetchSightingsFromSupabase(): Promise<{ data: Sighting[] |
           return false;
         }
 
-        if (sp === 'test bird' || notes.includes('service verification test') || notes.includes('updated notes')) {
+        if (
+          sp === 'test bird' ||
+          sp === 'none' ||
+          sp === '' ||
+          sp === 'test' ||
+          sp === 'test_deleted' ||
+          sp.includes('test') ||
+          (sp === 'robin' && (uId === 'test_user' || uName.includes('test')))
+        ) {
+          return false;
+        }
+
+        if (
+          notes.includes('service verification test') ||
+          notes.includes('updated notes') ||
+          notes.includes('diagnostic offline queue') ||
+          notes.includes('deleted_test_data') ||
+          notes.includes('no birds are visible in the image') ||
+          notes.includes('no birds detected')
+        ) {
+          return false;
+        }
+
+        if (loc.includes('test sector') || loc.includes('test location')) {
           return false;
         }
 

@@ -20,6 +20,7 @@ interface SightingLoggerProps {
   initialCoords?: { lat: number; lng: number } | null;
   onUpdateUser?: (updatedUser: User) => void;
   onOpenRestrictionModal?: () => void;
+  onOpenAiScanner?: () => void;
   existingSightings?: Sighting[];
   prefilledData?: {
     speciesName?: string;
@@ -42,6 +43,7 @@ const SightingLoggerComponent: React.FC<SightingLoggerProps> = ({
   initialCoords,
   onUpdateUser,
   onOpenRestrictionModal,
+  onOpenAiScanner,
   existingSightings = [],
   prefilledData,
 }) => {
@@ -83,6 +85,11 @@ const SightingLoggerComponent: React.FC<SightingLoggerProps> = ({
   const [isValidatingBirdImage, setIsValidatingBirdImage] = useState<boolean>(false);
   const [imageValidationError, setImageValidationError] = useState<string | null>(null);
   const [isBirdVerified, setIsBirdVerified] = useState<boolean>(false);
+
+  // AI Bird Identification states
+  const [isAiScanning, setIsAiScanning] = useState<boolean>(false);
+  const [aiScanError, setAiScanError] = useState<string | null>(null);
+  const [aiScanSuccess, setAiScanSuccess] = useState<string | null>(null);
 
   // Duplicate Image Detection state
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
@@ -239,6 +246,139 @@ const SightingLoggerComponent: React.FC<SightingLoggerProps> = ({
 
     if (onUpdateUser) onUpdateUser(updatedUser);
     if (onOpenRestrictionModal) onOpenRestrictionModal();
+  };
+
+  // AI Identify Bird & Bat Species function
+  const handleAiIdentifySpecies = async (overridePhoto?: string) => {
+    const targetPhoto = overridePhoto || previewImage || photoUrl;
+    if (!targetPhoto || !targetPhoto.trim()) {
+      const fileInput = document.getElementById('sighting-file-input') as HTMLInputElement | null;
+      if (fileInput) {
+        fileInput.click();
+      }
+      setAiScanError('Please select or upload a bird photograph first to run AI species identification.');
+      return;
+    }
+
+    setIsAiScanning(true);
+    setAiScanError(null);
+    setAiScanSuccess(null);
+
+    try {
+      const appSpeciesList = speciesList.map((s) => ({
+        id: s.id,
+        commonName: s.commonName,
+        scientificName: s.scientificName,
+      }));
+
+      // Optimize image for API payload
+      let optimizedPhoto = targetPhoto;
+      try {
+        optimizedPhoto = await optimizeImageForApi(targetPhoto, 800, 0.78);
+      } catch (optErr) {
+        console.warn('Image optimization notice:', optErr);
+      }
+
+      const isRemote = typeof targetPhoto === 'string' && targetPhoto.startsWith('http') && !targetPhoto.startsWith('blob:') && !targetPhoto.includes('localhost:');
+
+      const json = await safeFetchJson('/api/identify-bird', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          photoUrl: isRemote ? targetPhoto : undefined,
+          base64Image: optimizedPhoto.startsWith('data:') ? optimizedPhoto : undefined,
+          appSpeciesList,
+        }),
+      });
+
+      if (json.isBird === false && json.isBat !== true) {
+        const rejectionMsg = json.error || '🚫 Non-Bird/Non-Bat Image Rejected: The uploaded image does not depict a bird or permitted bat.';
+        setAiScanError(rejectionMsg);
+        setImageValidationError(rejectionMsg);
+        setIsBirdVerified(false);
+        return;
+      }
+
+      const birdData = json.data || (json.isBird || json.isBat ? json : null);
+      if (birdData && birdData.commonName) {
+        const matched = speciesList.find(
+          (s) =>
+            s.id === birdData.matchedSpeciesId ||
+            s.commonName.toLowerCase() === birdData.commonName.toLowerCase() ||
+            (birdData.scientificName && s.scientificName.toLowerCase() === birdData.scientificName.toLowerCase())
+        );
+
+        if (matched) {
+          setSelectedSpeciesId(matched.id);
+          setUseCustomSpecies(false);
+          setCustomSpeciesName('');
+        } else {
+          setUseCustomSpecies(true);
+          setCustomSpeciesName(birdData.commonName);
+        }
+
+        if (birdData.suggestedFlockCount && birdData.suggestedFlockCount > 0) {
+          setFlockCount(birdData.suggestedFlockCount);
+        }
+        if (birdData.suggestedBehavior) {
+          setBehavior(birdData.suggestedBehavior);
+        }
+
+        const featuresText = Array.isArray(birdData.diagnosticFeatures) && birdData.diagnosticFeatures.length > 0
+          ? ` Diagnostic markings: ${birdData.diagnosticFeatures.join(', ')}.`
+          : '';
+        const factText = birdData.funFact ? ` Fact: ${birdData.funFact}` : '';
+        const aiSummary = `[AI Vision Verified ${birdData.confidenceScore || 90}%]: ${birdData.description || 'Avian specimen cataloged from image analysis.'}${featuresText}${factText}`;
+
+        setNotes((prevNotes) => {
+          if (!prevNotes || prevNotes.trim().length === 0) {
+            return aiSummary;
+          }
+          if (prevNotes.includes('[AI Vision Verified')) {
+            return aiSummary;
+          }
+          return `${prevNotes}\n\n${aiSummary}`;
+        });
+
+        setAiResult({
+          isBird: birdData.isBird ?? true,
+          isBat: birdData.isBat ?? false,
+          commonName: birdData.commonName,
+          scientificName: birdData.scientificName || '',
+          confidenceScore: birdData.confidenceScore || 90,
+          category: birdData.category || (birdData.isBat ? 'Chiroptera' : 'Passeriformes'),
+          diagnosticFeatures: birdData.diagnosticFeatures || [],
+          matchedSpeciesId: matched ? matched.id : null,
+          suggestedFlockCount: birdData.suggestedFlockCount || 1,
+          suggestedBehavior: birdData.suggestedBehavior || 'flying',
+          conservationStatus: birdData.conservationStatus || matched?.conservationStatus || 'Least Concern',
+          description: birdData.description || 'Avian specimen identified via AI vision model.',
+          funFact: birdData.funFact || '',
+          birdsLeftToRight: birdData.birdsLeftToRight || [],
+        });
+
+        setIsBirdVerified(true);
+        setImageValidationError(null);
+        setSpeciesError(null);
+        setAiScanSuccess(`✨ Identified: ${birdData.commonName} (${birdData.confidenceScore || 90}% confidence)`);
+
+        try {
+          confetti({
+            particleCount: 35,
+            spread: 55,
+            origin: { y: 0.6 },
+            colors: ['#00ffaa', '#38bdf8', '#fbbf24'],
+          });
+        } catch (_) {}
+      } else {
+        setAiScanError('Could not recognize the bird species in this photo. Please select from the dropdown.');
+      }
+    } catch (err: any) {
+      console.warn('AI identification error:', err);
+      setAiScanError(extractErrorMessage(err, 'AI species identification service is currently busy. Please select the species manually.'));
+    } finally {
+      setIsAiScanning(false);
+    }
   };
 
   // Update coords if props update from map picker
@@ -438,6 +578,11 @@ const SightingLoggerComponent: React.FC<SightingLoggerProps> = ({
     })();
 
     await Promise.all([uploadTask, validationTask]);
+
+    // Automatically trigger AI species identification if user has not picked a species yet
+    if (!selectedSpeciesId && !customSpeciesName.trim()) {
+      handleAiIdentifySpecies(localBlobUrl);
+    }
   };
 
   const isSubmittingRef = React.useRef(false);
@@ -997,20 +1142,44 @@ const SightingLoggerComponent: React.FC<SightingLoggerProps> = ({
           
           {/* Section 1: Species Selection */}
           <div id="species-select-section" className="space-y-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <label className="font-mono-code text-xs text-[#edeeef]/90 uppercase tracking-widest block font-bold">
                 Species Observed (Bird or Permitted Bat) <span className="text-rose-400 font-bold">*</span>
               </label>
-              <button
-                type="button"
-                onClick={() => {
-                  setUseCustomSpecies(!useCustomSpecies);
-                  setSpeciesError(null);
-                }}
-                className="font-mono-code text-xs text-[#00ffaa] hover:underline uppercase tracking-wider self-start sm:self-auto min-h-[36px] flex items-center"
-              >
-                {useCustomSpecies ? 'Select from Database' : '+ Log Unlisted Species'}
-              </button>
+              <div className="flex items-center space-x-2">
+                {/* AI Identify Species button */}
+                <button
+                  type="button"
+                  id="ai-identify-species-top-btn"
+                  onClick={() => handleAiIdentifySpecies()}
+                  disabled={isAiScanning}
+                  className="font-mono-code text-xs px-2.5 py-1 rounded bg-[#00ffaa]/15 hover:bg-[#00ffaa]/25 text-[#00ffaa] border border-[#00ffaa]/40 uppercase tracking-wider flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  title="Identify bird species automatically using Gemini AI Vision"
+                >
+                  {isAiScanning ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#00ffaa]" />
+                      <span>Scanning...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 text-[#00ffaa]" />
+                      <span>✨ AI Identify</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUseCustomSpecies(!useCustomSpecies);
+                    setSpeciesError(null);
+                  }}
+                  className="font-mono-code text-xs text-[#00ffaa] hover:underline uppercase tracking-wider min-h-[36px] flex items-center cursor-pointer"
+                >
+                  {useCustomSpecies ? 'Select from Database' : '+ Log Unlisted Species'}
+                </button>
+              </div>
             </div>
 
             {!useCustomSpecies ? (
@@ -1501,7 +1670,87 @@ const SightingLoggerComponent: React.FC<SightingLoggerProps> = ({
                     onChange={handleImageFileChange}
                     className="hidden"
                   />
+
+                  {/* AI Identify Species Button */}
+                  <button
+                    type="button"
+                    id="ai-identify-species-photo-btn"
+                    onClick={() => handleAiIdentifySpecies()}
+                    disabled={isAiScanning || isValidatingBirdImage}
+                    className={`min-h-[44px] px-3.5 py-2 rounded font-mono-code text-xs uppercase font-semibold tracking-wider flex items-center space-x-2 transition-all cursor-pointer active:scale-95 disabled:opacity-50 ${
+                      previewImage
+                        ? 'bg-[#00ffaa] hover:bg-[#00ffaa]/90 text-[#070808] border border-[#00ffaa] shadow-md shadow-[#00ffaa]/20 font-bold'
+                        : 'bg-[rgba(0,255,170,0.12)] hover:bg-[rgba(0,255,170,0.2)] text-[#00ffaa] border border-[#00ffaa]/40'
+                    }`}
+                    title="Identify bird species from photo with Gemini AI Vision"
+                  >
+                    {isAiScanning ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-current" />
+                        <span>AI Identifying...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-current" />
+                        <span>✨ AI Identify Species</span>
+                      </>
+                    )}
+                  </button>
+
+                  {onOpenAiScanner && (
+                    <button
+                      type="button"
+                      onClick={onOpenAiScanner}
+                      className="min-h-[44px] px-3 py-2 rounded bg-[rgba(237,238,239,0.06)] hover:bg-[rgba(237,238,239,0.12)] border border-[rgba(237,238,239,0.15)] text-[#edeeef] font-mono-code text-xs uppercase font-semibold tracking-wider flex items-center space-x-1.5 transition-all cursor-pointer"
+                      title="Open full AI bird identification scanner modal"
+                    >
+                      <Search className="w-3.5 h-3.5 text-[#00ffaa]" />
+                      <span>AI Scanner</span>
+                    </button>
+                  )}
                 </div>
+
+                {/* AI Scanning Progress Banner */}
+                {isAiScanning && (
+                  <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-xs font-mono-code text-emerald-300 flex items-center space-x-2 animate-pulse">
+                    <RefreshCw className="w-4 h-4 animate-spin shrink-0 text-emerald-400" />
+                    <span>Analyzing plumage, beak shape, and flight silhouette with AI Vision...</span>
+                  </div>
+                )}
+
+                {/* AI Scan Success Banner */}
+                {aiScanSuccess && !isAiScanning && (
+                  <div className="p-2.5 bg-[#00ffaa]/15 border border-[#00ffaa]/40 rounded text-xs font-mono-code text-[#00ffaa] flex items-center justify-between animate-in fade-in">
+                    <div className="flex items-center space-x-2">
+                      <Sparkles className="w-4 h-4 shrink-0 text-[#00ffaa]" />
+                      <span>{aiScanSuccess}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAiScanSuccess(null)}
+                      className="text-[#00ffaa]/70 hover:text-[#00ffaa] text-[10px] uppercase font-bold ml-2 cursor-pointer"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+
+                {/* AI Scan Error Banner */}
+                {aiScanError && !isAiScanning && (
+                  <div className="p-2.5 bg-amber-500/15 border border-amber-500/40 rounded text-xs font-mono-code text-amber-300 flex items-center justify-between animate-in fade-in">
+                    <div className="flex items-center space-x-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                      <span>{aiScanError}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAiScanError(null)}
+                      className="text-amber-400/70 hover:text-amber-300 text-[10px] uppercase font-bold ml-2 cursor-pointer"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 

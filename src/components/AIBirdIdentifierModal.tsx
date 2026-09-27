@@ -95,18 +95,10 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
     }
   };
 
-  const SAMPLE_MODAL_PHOTOS = [
-    { name: 'Barred Parakeet', url: 'https://images.unsplash.com/photo-1552728089-57bdde30beb3?w=800&auto=format&fit=crop', emoji: '🦜' },
-    { name: 'Peregrine Falcon', url: 'https://images.unsplash.com/photo-1611689342806-0863700ce1e4?w=800&auto=format&fit=crop', emoji: '🦅' },
-    { name: 'Sandhill Crane', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop', emoji: '🦩' },
-    { name: 'Free-tailed Bat', url: 'https://images.unsplash.com/photo-1574063413132-355dbfd83e12?w=800&auto=format&fit=crop', emoji: '🦇' },
-    { name: 'Barn Owl', url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=800&auto=format&fit=crop', emoji: '🦉' },
-  ];
-
   const handleRunAiIdentification = async (overridePhoto?: string) => {
     const imageToAnalyze = overridePhoto || customPhotoInput.trim() || photoUrl;
     if (!imageToAnalyze || !imageToAnalyze.trim()) {
-      setErrorMsg('Please select or upload a bird photograph first, or pick one of the sample test photos below.');
+      setErrorMsg('Please select or upload a bird photograph first to run AI species identification.');
       document.getElementById('modal-bird-photo-file')?.click();
       return;
     }
@@ -198,14 +190,6 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
     } finally {
       setIsScanning(false);
     }
-  };
-
-  const handleSelectSampleInModal = async (sample: { name: string; url: string }) => {
-    setCustomPhotoInput(sample.url);
-    setPhotoUrl(sample.url);
-    setErrorMsg(null);
-    setAiResult(null);
-    await handleRunAiIdentification(sample.url);
   };
 
   const handleApplyToSighting = () => {
@@ -352,27 +336,6 @@ export const AIBirdIdentifierModal: React.FC<AIBirdIdentifierModalProps> = ({
                     }}
                     className="w-full bg-[#0b0c0d] border border-[rgba(237,238,239,0.15)] rounded px-3 py-2 text-xs font-mono-code text-[#edeeef] placeholder-[#edeeef]/40 focus:outline-none focus:border-[#00ffaa]"
                   />
-
-                  {/* 1-Click Sample Wildlife Photos in Modal */}
-                  <div className="pt-1 space-y-1.5">
-                    <span className="text-[11px] font-mono-code text-[#edeeef]/60 block">
-                      💡 Or test AI vision instantly with sample wildlife:
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {SAMPLE_MODAL_PHOTOS.map((sample) => (
-                        <button
-                          key={sample.name}
-                          type="button"
-                          onClick={() => handleSelectSampleInModal(sample)}
-                          disabled={isScanning}
-                          className="px-2 py-1 rounded bg-[rgba(237,238,239,0.06)] hover:bg-[#00ffaa]/15 border border-[rgba(237,238,239,0.15)] hover:border-[#00ffaa]/40 text-[#edeeef] hover:text-[#00ffaa] font-mono-code text-[11px] flex items-center space-x-1 transition-all cursor-pointer disabled:opacity-50"
-                        >
-                          <span>{sample.emoji}</span>
-                          <span>{sample.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>

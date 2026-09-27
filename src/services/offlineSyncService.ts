@@ -72,7 +72,26 @@ export function getPendingSightingsQueue(): QueuedSighting[] {
     const raw = localStorage.getItem(OFFLINE_SYNC_QUEUE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+
+    // Filter out any legacy or diagnostic test sightings
+    return parsed.filter((item) => {
+      const s = item?.sighting;
+      if (!s || !s.id) return false;
+      const sId = String(s.id).toLowerCase();
+      const uId = String(s.userId || '').toLowerCase();
+      const uName = String(s.userName || '').toLowerCase();
+      const sp = String(s.speciesName || '').toLowerCase();
+      const notes = String(s.notes || '').toLowerCase();
+
+      if (sId.startsWith('test-') || sId.startsWith('mock') || sId.startsWith('demo_') || sId.includes('test')) return false;
+      if (uId === 'usr_001' || uId === 'test_user' || uId === 'guest-field-tester' || uId.includes('tester')) return false;
+      if (uName.includes('tester') || uName.includes('diagnostic')) return false;
+      if (sp === 'test bird' || sp === 'none' || sp === 'test' || sp.includes('test')) return false;
+      if (notes.includes('diagnostic offline queue') || notes.includes('service verification test')) return false;
+
+      return true;
+    });
   } catch (err) {
     console.warn('[OfflineSync] Failed to read pending queue from localStorage:', err);
     return [];

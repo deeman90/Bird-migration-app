@@ -20,7 +20,6 @@ import { AuthModal } from './components/AuthModal';
 import { AuthPage } from './components/AuthPage';
 import { SettingsPage } from './components/SettingsPage';
 import { DonationPage } from './components/DonationPage';
-import { DiagnosticTestPage } from './components/DiagnosticTestPage';
 import { AIBirdIdentifierModal } from './components/AIBirdIdentifierModal';
 import { AccountRestrictionModal } from './components/AccountRestrictionModal';
 import { PaymentModal } from './components/PaymentModal';
@@ -49,7 +48,7 @@ import { CheckCircle2, Sparkles, AlertCircle, Compass, Lock } from 'lucide-react
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from './context/ThemeContext';
 
-export type AppTab = 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings' | 'donate' | 'diagnostic';
+export type AppTab = 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings' | 'donate';
 
 function isLegacyMockSighting(s: Sighting): boolean {
   if (!s || !s.id) return true;
@@ -58,21 +57,40 @@ function isLegacyMockSighting(s: Sighting): boolean {
   const userId = String(s.userId || '').toLowerCase();
   const species = String(s.speciesName || '').toLowerCase();
   const notes = String(s.notes || '').toLowerCase();
+  const location = String(s.locationName || '').toLowerCase();
 
-  if (id.startsWith('mock') || id.startsWith('demo_') || id.startsWith('st_init')) return true;
+  // Test / mock ID patterns
+  if (
+    id.startsWith('mock') ||
+    id.startsWith('demo_') ||
+    id.startsWith('st_init') ||
+    id.startsWith('test-') ||
+    id.startsWith('test_') ||
+    id.includes('test')
+  ) {
+    return true;
+  }
+
+  // Test / demo user accounts
   if (
     userId === 'usr_001' ||
     userId === 'test_user' ||
     userId === 'test_check' ||
     userId === 'anon_user' ||
     userId === 'usr_service_test' ||
-    userId === 'usr_mock'
+    userId === 'usr_mock' ||
+    userId === 'guest-field-tester' ||
+    userId.includes('tester') ||
+    userId.includes('test_')
   ) {
     return true;
   }
+
+  // Test usernames
   if (
     userName.includes('alex rivera') ||
     userName.includes('test birder') ||
+    userName.includes('diagnostic tester') ||
     userName.includes('inspector') ||
     userName.includes('anon birder') ||
     userName.includes('tester') ||
@@ -80,10 +98,35 @@ function isLegacyMockSighting(s: Sighting): boolean {
   ) {
     return true;
   }
-  if (species === 'test bird' || species === 'none' || species === 'robin') {
-    if (userId === 'test_user' || userName.includes('test')) return true;
+
+  // Test or invalid species
+  if (
+    species === 'test bird' ||
+    species === 'none' ||
+    species === '' ||
+    species === 'test' ||
+    species === 'test_deleted' ||
+    species.includes('test') ||
+    (species === 'robin' && (userId === 'test_user' || userName.includes('test')))
+  ) {
+    return true;
   }
-  if (notes.includes('service verification test') || notes.includes('updated notes')) return true;
+
+  // Test notes or diagnostic text
+  if (
+    notes.includes('service verification test') ||
+    notes.includes('updated notes') ||
+    notes.includes('diagnostic offline queue') ||
+    notes.includes('deleted_test_data') ||
+    notes.includes('no birds are visible in the image') ||
+    notes.includes('no birds detected')
+  ) {
+    return true;
+  }
+
+  if (location.includes('test sector') || location.includes('test location')) {
+    return true;
+  }
 
   return false;
 }
@@ -173,15 +216,6 @@ export default function App() {
     if (path.startsWith('/auth') || path.startsWith('/login') || path.startsWith('/signup')) return 'auth';
     if (path.startsWith('/settings') || path.startsWith('/profile')) return 'settings';
     if (path.startsWith('/donate')) return 'donate';
-    if (
-      path.startsWith('/diagnostic') ||
-      path.startsWith('/diagnostics') ||
-      path.startsWith('/_diagnostic') ||
-      path.startsWith('/secret-diagnostic') ||
-      path.startsWith('/debug/supabase')
-    ) {
-      return 'diagnostic';
-    }
     return 'map';
   };
 
@@ -948,7 +982,6 @@ export default function App() {
         onLogout={handleLogout}
         onToggleUserTier={handleToggleUserTier}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
-        onOpenAiScanner={() => setIsAiScannerOpen(true)}
       />
 
       {/* Offline Connectivity & Pending Sync Queue Banner */}
@@ -1088,12 +1121,6 @@ export default function App() {
             showToast={showToast}
           />
         )}
-
-        {activeTab === 'diagnostic' && (
-          <DiagnosticTestPage
-            onBack={() => setActiveTab('map')}
-          />
-        )}
       </main>
 
       {/* Quick Authentication Modal */}
@@ -1131,7 +1158,7 @@ export default function App() {
             restrictionReason: undefined,
           }));
           setIsRestrictionModalOpen(false);
-          showToast('Account restriction reset for demo testing.', 'success');
+          showToast('Account restriction lifted. Full field access restored.', 'success');
         }}
       />
 

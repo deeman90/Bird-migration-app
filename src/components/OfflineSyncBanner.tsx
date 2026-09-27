@@ -204,7 +204,7 @@ export const OfflineSyncBanner: React.FC<OfflineSyncBannerProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center space-x-2 self-end sm:self-auto flex-wrap">
-            {/* Offline Simulation Toggle for convenient testing */}
+            {/* Field Offline Simulation Toggle */}
             <button
               id="toggle-offline-simulation-btn"
               onClick={toggleSimulatedOffline}
@@ -213,7 +213,7 @@ export const OfflineSyncBanner: React.FC<OfflineSyncBannerProps> = ({
                   ? 'bg-amber-500/30 border-amber-400 text-amber-200 hover:bg-amber-500/40'
                   : 'bg-black/30 border-current/30 hover:bg-black/50 text-[#edeeef]/80'
               }`}
-              title="Toggle simulated offline mode to test offline observation queuing and automatic Supabase sync"
+              title="Toggle simulated offline mode for field observation queuing and automatic Supabase sync"
             >
               {simulatedOffline ? <WifiOff className="w-3 h-3 text-amber-300" /> : <Wifi className="w-3 h-3 opacity-60" />}
               <span>{simulatedOffline ? 'Resume Online' : 'Simulate Offline'}</span>

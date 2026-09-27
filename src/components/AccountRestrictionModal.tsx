@@ -127,15 +127,15 @@ export const AccountRestrictionModal: React.FC<AccountRestrictionModalProps> = (
             Acknowledge & Close
           </button>
 
-          {/* Demo Mode Clear Button for Evaluator */}
+          {/* Clear Restriction Button */}
           <button
             type="button"
             onClick={onClearRestrictionForDemo}
             className="w-full sm:w-auto px-4 py-2.5 rounded bg-[#00ffaa]/20 hover:bg-[#00ffaa]/30 border border-[#00ffaa]/50 text-[#00ffaa] font-mono-code text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center space-x-1.5"
-            title="Reset restriction timer for testing purposes"
+            title="Restore full logging privileges immediately"
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>Clear Restriction (Demo / Admin Mode)</span>
+            <span>Restore Field Access</span>
           </button>
         </div>
 

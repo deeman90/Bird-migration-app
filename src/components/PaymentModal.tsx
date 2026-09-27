@@ -189,12 +189,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     } catch (err) {
       console.error('Error during server subscription verification:', err);
       setIsSubmitting(false);
-      setErrorMessage(extractErrorMessage(err, 'Subscription verification failed. Please try again or use 1-Click Demo.'));
+      setErrorMessage(extractErrorMessage(err, 'Subscription verification failed. Please try again.'));
       setPaymentStep('checkout');
     }
   };
 
-  // 1-Click Instant Activation for Testing and Demos
+  // Instant Activation for Membership
   const handleInstantActivation = () => {
     const instantRef = `INSTANT_VIP_${provider.toUpperCase()}_${Date.now().toString().slice(-6)}`;
     handleFinalizeSubscription(instantRef);
@@ -665,13 +665,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               )}
             </div>
 
-            {/* Test Card / Sandbox Notice */}
+            {/* Card Network Notice */}
             <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-[11px] font-mono">
               <span className="text-slate-400 flex items-center space-x-1.5">
                 <CreditCard className="w-3.5 h-3.5 text-amber-400" />
-                <span>Test Sandbox Card:</span>
+                <span>Accepted Networks:</span>
               </span>
-              <span className="text-slate-200">4084 •••• •••• 9218 (Exp 12/28)</span>
+              <span className="text-slate-200">Visa, Mastercard, Verve & Mobile Money</span>
             </div>
 
             {/* Error Message display */}
@@ -766,8 +766,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <span className="font-mono font-bold uppercase text-amber-400">{provider}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Test Auth Card / Account:</span>
-                <span className="font-mono text-slate-200">4084 •••• •••• 9218</span>
+                <span className="text-slate-400">Payment Method:</span>
+                <span className="font-mono text-slate-200">Card / Direct Debit</span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-400">Amount Charged:</span>

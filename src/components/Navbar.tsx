@@ -5,8 +5,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { BMALogo } from './BMALogo';
 
 interface NavbarProps {
-  activeTab: 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings' | 'donate' | 'diagnostic';
-  setActiveTab: (tab: 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings' | 'donate' | 'diagnostic') => void;
+  activeTab: 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings' | 'donate';
+  setActiveTab: (tab: 'map' | 'log' | 'feed' | 'leaderboard' | 'hotspots' | 'auth' | 'settings' | 'donate') => void;
   currentUser: User;
   isLoggedIn?: boolean;
   onLogout?: () => void;
