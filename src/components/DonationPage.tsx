@@ -87,17 +87,15 @@ export const DonationPage: React.FC<DonationPageProps> = ({
   const [cardExpiry, setCardExpiry] = useState<string>('08/29');
   const [cardCvc, setCardCvc] = useState<string>('883');
 
-  // Paystack Integration & Interactive Drawer State (Configured via Backend API)
+  // Paystack Integration & Interactive Drawer State
   const [paystackConfig, setPaystackConfig] = useState<{
     paystackPublicKey?: string;
     isConfigured?: boolean;
     isLive?: boolean;
     accountMode?: 'live' | 'test';
   }>({
-    paystackPublicKey: '',
-    isConfigured: false,
-    isLive: false,
-    accountMode: 'test',
+    paystackPublicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+    isLive: Boolean(import.meta.env.VITE_PAYSTACK_PUBLIC_KEY?.startsWith('pk_live_')),
   });
   const [isPaystackDrawerOpen, setIsPaystackDrawerOpen] = useState<boolean>(false);
   const [paystackChannel, setPaystackChannel] = useState<'card' | 'bank' | 'ussd' | 'mobile_money'>('card');
@@ -329,7 +327,7 @@ export const DonationPage: React.FC<DonationPageProps> = ({
         console.warn('[Donation Init Notice]:', err);
       }
 
-      const activeKey = paystackConfig.paystackPublicKey || '';
+      const activeKey = paystackConfig.paystackPublicKey || import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
       const isPlaceholder = !activeKey || activeKey.includes('example');
 
       // Attempt live Paystack Inline SDK if key is configured or accessCode was generated

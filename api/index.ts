@@ -1,13 +1,3 @@
-import dotenv from 'dotenv';
-const parsedEnv = dotenv.config().parsed || {};
-for (const [k, v] of Object.entries(parsedEnv)) {
-  if (v && v.trim() !== '' && !v.includes('your_') && !v.includes('example')) {
-    process.env[k] = v.trim();
-  }
-}
-if (process.env.FLUTTERWAVE_PUBLIC_KEY && !process.env.FLUTTERWAVE_PUBLIC_KEY.includes('example') && !process.env.FLUTTERWAVE_PUBLIC_KEY.includes('your_')) {
-  process.env.VITE_FLUTTERWAVE_PUBLIC_KEY = process.env.FLUTTERWAVE_PUBLIC_KEY;
-}
 import express from 'express';
 import compression from 'compression';
 import { GoogleGenAI, Type } from '@google/genai';
@@ -392,44 +382,6 @@ const OFFICIAL_PRICING: Record<string, { monthly: number; yearly: number; symbol
   ZAR: { monthly: 95, yearly: 950, symbol: 'R ' },
 };
 
-// Safe helper to retrieve validated Flutterwave public key without exposing secrets
-function getFlutterwavePublicKey(): string {
-  const candidates = [
-    process.env.FLUTTERWAVE_PUBLIC_KEY,
-    process.env.VITE_FLUTTERWAVE_PUBLIC_KEY,
-  ];
-  for (const key of candidates) {
-    if (!key || typeof key !== 'string') continue;
-    const trimmed = key.trim();
-    if (!trimmed || trimmed.includes('example') || trimmed.includes('your_') || trimmed.includes('placeholder')) continue;
-    // Strictly prevent exposing secret keys that might have been mistakenly placed in public key variable
-    if (trimmed.startsWith('FLWSECK') || trimmed.includes('secret') || trimmed.includes('SEC')) continue;
-    if (trimmed.startsWith('FLWPUBK') || trimmed.startsWith('FLW_PUB') || (trimmed.length > 10 && !trimmed.includes(' '))) {
-      return trimmed;
-    }
-  }
-  return '';
-}
-
-// Safe helper to retrieve Flutterwave secret key for server-side verification
-function getFlutterwaveSecretKey(): string {
-  const candidates = [
-    process.env.FLUTTERWAVE_SECRET_KEY,
-    process.env.FLW_SECRET_KEY,
-    process.env.FLUTTERWAVE_PUBLIC_KEY,
-  ];
-  for (const key of candidates) {
-    if (!key || typeof key !== 'string') continue;
-    const trimmed = key.trim();
-    if (!trimmed || trimmed.includes('example') || trimmed.includes('your_') || trimmed.includes('placeholder')) continue;
-    if (trimmed.startsWith('FLWSECK') || trimmed.includes('secret') || trimmed.includes('SEC')) {
-      return trimmed;
-    }
-  }
-  const fallback = (process.env.FLUTTERWAVE_SECRET_KEY || '').trim();
-  return (fallback.includes('example') || fallback.includes('your_')) ? '' : fallback;
-}
-
 // Checkout Initialization Endpoint
 app.post(['/api/checkout/initialize', '/checkout/initialize'], paymentRateLimiter, (req, res) => {
   try {
@@ -439,8 +391,6 @@ app.post(['/api/checkout/initialize', '/checkout/initialize'], paymentRateLimite
     const validatedAmount = billingInterval === 'yearly' ? pricing.yearly : pricing.monthly;
 
     const reference = `${(provider || 'PAY').slice(0, 3).toUpperCase()}_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-    const paystackPublicKey = process.env.PAYSTACK_PUBLIC_KEY || process.env.VITE_PAYSTACK_PUBLIC_KEY || '';
-    const flutterwavePublicKey = getFlutterwavePublicKey();
 
     return res.json({
       success: true,
@@ -449,8 +399,6 @@ app.post(['/api/checkout/initialize', '/checkout/initialize'], paymentRateLimite
       billingInterval: billingInterval === 'yearly' ? 'yearly' : 'monthly',
       transactionRef: reference,
       priceVerifiedByServer: true,
-      paystackPublicKey,
-      flutterwavePublicKey,
       initializedAt: new Date().toISOString(),
     });
   } catch {
@@ -459,7 +407,7 @@ app.post(['/api/checkout/initialize', '/checkout/initialize'], paymentRateLimite
 });
 
 // Payment Verification Endpoint
-app.post(['/api/payment/verify', '/payment/verify'], paymentRateLimiter, async (req, res) => {
+app.post(['/api/payment/verify', '/payment/verify'], paymentRateLimiter, (req, res) => {
   try {
     const { transactionRef, provider, billingInterval, currency, userId } = req.body || {};
 
@@ -474,44 +422,6 @@ app.post(['/api/payment/verify', '/payment/verify'], paymentRateLimiter, async (
     const durationDays = billingInterval === 'yearly' ? 365 : 30;
     const now = new Date();
     const periodEnd = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
-
-    // If server has Paystack secret key, verify directly with Paystack API
-    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
-    if (provider === 'paystack' && paystackSecret && transactionRef && !transactionRef.startsWith('DEMO_') && !transactionRef.startsWith('INSTANT_')) {
-      try {
-        const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(transactionRef)}`, {
-          headers: {
-            Authorization: `Bearer ${paystackSecret}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        const verifyJson = await verifyRes.json();
-        if (verifyJson && verifyJson.data) {
-          console.log(`[Paystack Server Verify] Confirmed subscription payment tx ${transactionRef}: status=${verifyJson.data.status}`);
-        }
-      } catch (paystackErr) {
-        console.warn('[Paystack Server Verify Notice]:', paystackErr);
-      }
-    }
-
-    // If server has Flutterwave secret key, verify directly with Flutterwave API
-    const flutterwaveSecret = getFlutterwaveSecretKey();
-    if (provider === 'flutterwave' && flutterwaveSecret && transactionRef && !transactionRef.startsWith('DEMO_') && !transactionRef.startsWith('INSTANT_')) {
-      try {
-        const verifyRes = await fetch(`https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(transactionRef)}`, {
-          headers: {
-            Authorization: `Bearer ${flutterwaveSecret}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        const verifyJson = await verifyRes.json();
-        if (verifyJson && verifyJson.data) {
-          console.log(`[Flutterwave Server Verify] Confirmed payment tx ${transactionRef}: status=${verifyJson.data.status}`);
-        }
-      } catch (flwErr) {
-        console.warn('[Flutterwave Server Verify Notice]:', flwErr);
-      }
-    }
 
     const verifiedSubscription = {
       userId,
@@ -549,59 +459,24 @@ app.post(['/api/webhook/payment', '/webhook/payment'], paymentRateLimiter, (req,
 });
 
 // ============================================================================
-// SYSTEM & DONATION SYSTEM ENDPOINTS
+// DONATION SYSTEM ENDPOINTS
 // ============================================================================
-
-// Unified Client-Safe Public Configuration Endpoint
-app.get(['/api/config', '/config'], (req, res) => {
-  const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').replace(/\/rest\/v1\/?$/, '');
-  let supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
-
-  // CRITICAL SECURITY ENFORCEMENT: Never expose private secret or service_role keys to the client
-  if (supabaseAnonKey.startsWith('sb_secret_') || supabaseAnonKey.includes('service_role') || supabaseAnonKey.startsWith('secret_')) {
-    supabaseAnonKey = '';
-  }
-
-  const paystackPublicKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY || '';
-  const flutterwavePublicKey = getFlutterwavePublicKey();
-  const flutterwaveSecret = getFlutterwaveSecretKey();
-
-  return res.json({
-    supabaseUrl,
-    supabaseAnonKey,
-    paystackPublicKey,
-    flutterwavePublicKey,
-    hasPaystackSecret: Boolean(process.env.PAYSTACK_SECRET_KEY && !process.env.PAYSTACK_SECRET_KEY.includes('example')),
-    isPaystackLive: Boolean(paystackPublicKey.startsWith('pk_live_') || process.env.PAYSTACK_SECRET_KEY?.startsWith('sk_live_')),
-    hasFlutterwaveSecret: Boolean(flutterwaveSecret),
-    isFlutterwaveLive: Boolean(flutterwavePublicKey.startsWith('FLWPUBK-') && !flutterwavePublicKey.toLowerCase().includes('test')),
-  });
-});
 
 const serverDonationsCache: any[] = [];
 
-// Get Payment & Paystack/Flutterwave Gateway Configuration
+// Get Payment & Paystack Gateway Configuration
 app.get(['/api/donations/config', '/donations/config'], (req, res) => {
-  const paystackPublicKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY || '';
-  const hasPaystackSecret = Boolean(process.env.PAYSTACK_SECRET_KEY && !process.env.PAYSTACK_SECRET_KEY.includes('example'));
-  const isPaystackConfigured = Boolean(paystackPublicKey && !paystackPublicKey.includes('example'));
-  const isPaystackLive = Boolean(paystackPublicKey.startsWith('pk_live_') || process.env.PAYSTACK_SECRET_KEY?.startsWith('sk_live_'));
-
-  const flutterwavePublicKey = getFlutterwavePublicKey();
-  const flutterwaveSecret = getFlutterwaveSecretKey();
-  const isFlutterwaveConfigured = Boolean(flutterwavePublicKey);
-  const isFlutterwaveLive = Boolean(flutterwavePublicKey.startsWith('FLWPUBK-') && !flutterwavePublicKey.toLowerCase().includes('test'));
+  const publicKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY || '';
+  const hasSecret = Boolean(process.env.PAYSTACK_SECRET_KEY && !process.env.PAYSTACK_SECRET_KEY.includes('example'));
+  const isConfigured = Boolean(publicKey && !publicKey.includes('example'));
+  const isLive = Boolean(publicKey.startsWith('pk_live_') || process.env.PAYSTACK_SECRET_KEY?.startsWith('sk_live_'));
 
   return res.json({
-    paystackPublicKey,
-    hasPaystackSecret,
-    isConfigured: isPaystackConfigured,
-    isLive: isPaystackLive,
-    accountMode: isPaystackLive ? 'live' : 'test',
-    flutterwavePublicKey,
-    hasFlutterwaveSecret: Boolean(flutterwaveSecret),
-    isFlutterwaveConfigured,
-    isFlutterwaveLive,
+    paystackPublicKey: publicKey,
+    hasPaystackSecret: hasSecret,
+    isConfigured,
+    isLive,
+    accountMode: isLive ? 'live' : 'test',
   });
 });
 
