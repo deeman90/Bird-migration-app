@@ -272,4 +272,6 @@ export interface DonationRecord {
   provider: 'paystack' | 'card' | 'bank_transfer' | 'flutterwave' | 'demo';
   status: 'completed' | 'pending';
   receiptNumber: string;
+  transactionRef?: string;
+  paystackChannel?: string;
 }

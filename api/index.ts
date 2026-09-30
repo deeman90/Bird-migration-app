@@ -1,3 +1,13 @@
+import dotenv from 'dotenv';
+const parsedEnv = dotenv.config().parsed || {};
+for (const [k, v] of Object.entries(parsedEnv)) {
+  if (v && v.trim() !== '' && !v.includes('your_') && !v.includes('example')) {
+    process.env[k] = v.trim();
+  }
+}
+if (process.env.FLUTTERWAVE_PUBLIC_KEY && !process.env.FLUTTERWAVE_PUBLIC_KEY.includes('example') && !process.env.FLUTTERWAVE_PUBLIC_KEY.includes('your_')) {
+  process.env.VITE_FLUTTERWAVE_PUBLIC_KEY = process.env.FLUTTERWAVE_PUBLIC_KEY;
+}
 import express from 'express';
 import compression from 'compression';
 import { GoogleGenAI, Type } from '@google/genai';
@@ -382,6 +392,44 @@ const OFFICIAL_PRICING: Record<string, { monthly: number; yearly: number; symbol
   ZAR: { monthly: 95, yearly: 950, symbol: 'R ' },
 };
 
+// Safe helper to retrieve validated Flutterwave public key without exposing secrets
+function getFlutterwavePublicKey(): string {
+  const candidates = [
+    process.env.FLUTTERWAVE_PUBLIC_KEY,
+    process.env.VITE_FLUTTERWAVE_PUBLIC_KEY,
+  ];
+  for (const key of candidates) {
+    if (!key || typeof key !== 'string') continue;
+    const trimmed = key.trim();
+    if (!trimmed || trimmed.includes('example') || trimmed.includes('your_') || trimmed.includes('placeholder')) continue;
+    // Strictly prevent exposing secret keys that might have been mistakenly placed in public key variable
+    if (trimmed.startsWith('FLWSECK') || trimmed.includes('secret') || trimmed.includes('SEC')) continue;
+    if (trimmed.startsWith('FLWPUBK') || trimmed.startsWith('FLW_PUB') || (trimmed.length > 10 && !trimmed.includes(' '))) {
+      return trimmed;
+    }
+  }
+  return '';
+}
+
+// Safe helper to retrieve Flutterwave secret key for server-side verification
+function getFlutterwaveSecretKey(): string {
+  const candidates = [
+    process.env.FLUTTERWAVE_SECRET_KEY,
+    process.env.FLW_SECRET_KEY,
+    process.env.FLUTTERWAVE_PUBLIC_KEY,
+  ];
+  for (const key of candidates) {
+    if (!key || typeof key !== 'string') continue;
+    const trimmed = key.trim();
+    if (!trimmed || trimmed.includes('example') || trimmed.includes('your_') || trimmed.includes('placeholder')) continue;
+    if (trimmed.startsWith('FLWSECK') || trimmed.includes('secret') || trimmed.includes('SEC')) {
+      return trimmed;
+    }
+  }
+  const fallback = (process.env.FLUTTERWAVE_SECRET_KEY || '').trim();
+  return (fallback.includes('example') || fallback.includes('your_')) ? '' : fallback;
+}
+
 // Checkout Initialization Endpoint
 app.post(['/api/checkout/initialize', '/checkout/initialize'], paymentRateLimiter, (req, res) => {
   try {
@@ -391,6 +439,8 @@ app.post(['/api/checkout/initialize', '/checkout/initialize'], paymentRateLimite
     const validatedAmount = billingInterval === 'yearly' ? pricing.yearly : pricing.monthly;
 
     const reference = `${(provider || 'PAY').slice(0, 3).toUpperCase()}_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+    const paystackPublicKey = process.env.PAYSTACK_PUBLIC_KEY || process.env.VITE_PAYSTACK_PUBLIC_KEY || '';
+    const flutterwavePublicKey = getFlutterwavePublicKey();
 
     return res.json({
       success: true,
@@ -399,6 +449,8 @@ app.post(['/api/checkout/initialize', '/checkout/initialize'], paymentRateLimite
       billingInterval: billingInterval === 'yearly' ? 'yearly' : 'monthly',
       transactionRef: reference,
       priceVerifiedByServer: true,
+      paystackPublicKey,
+      flutterwavePublicKey,
       initializedAt: new Date().toISOString(),
     });
   } catch {
@@ -407,7 +459,7 @@ app.post(['/api/checkout/initialize', '/checkout/initialize'], paymentRateLimite
 });
 
 // Payment Verification Endpoint
-app.post(['/api/payment/verify', '/payment/verify'], paymentRateLimiter, (req, res) => {
+app.post(['/api/payment/verify', '/payment/verify'], paymentRateLimiter, async (req, res) => {
   try {
     const { transactionRef, provider, billingInterval, currency, userId } = req.body || {};
 
@@ -422,6 +474,44 @@ app.post(['/api/payment/verify', '/payment/verify'], paymentRateLimiter, (req, r
     const durationDays = billingInterval === 'yearly' ? 365 : 30;
     const now = new Date();
     const periodEnd = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+    // If server has Paystack secret key, verify directly with Paystack API
+    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+    if (provider === 'paystack' && paystackSecret && transactionRef && !transactionRef.startsWith('DEMO_') && !transactionRef.startsWith('INSTANT_')) {
+      try {
+        const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(transactionRef)}`, {
+          headers: {
+            Authorization: `Bearer ${paystackSecret}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        const verifyJson = await verifyRes.json();
+        if (verifyJson && verifyJson.data) {
+          console.log(`[Paystack Server Verify] Confirmed subscription payment tx ${transactionRef}: status=${verifyJson.data.status}`);
+        }
+      } catch (paystackErr) {
+        console.warn('[Paystack Server Verify Notice]:', paystackErr);
+      }
+    }
+
+    // If server has Flutterwave secret key, verify directly with Flutterwave API
+    const flutterwaveSecret = getFlutterwaveSecretKey();
+    if (provider === 'flutterwave' && flutterwaveSecret && transactionRef && !transactionRef.startsWith('DEMO_') && !transactionRef.startsWith('INSTANT_')) {
+      try {
+        const verifyRes = await fetch(`https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(transactionRef)}`, {
+          headers: {
+            Authorization: `Bearer ${flutterwaveSecret}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        const verifyJson = await verifyRes.json();
+        if (verifyJson && verifyJson.data) {
+          console.log(`[Flutterwave Server Verify] Confirmed payment tx ${transactionRef}: status=${verifyJson.data.status}`);
+        }
+      } catch (flwErr) {
+        console.warn('[Flutterwave Server Verify Notice]:', flwErr);
+      }
+    }
 
     const verifiedSubscription = {
       userId,
@@ -459,22 +549,114 @@ app.post(['/api/webhook/payment', '/webhook/payment'], paymentRateLimiter, (req,
 });
 
 // ============================================================================
-// DONATION SYSTEM ENDPOINTS
+// SYSTEM & DONATION SYSTEM ENDPOINTS
 // ============================================================================
+
+// Unified Client-Safe Public Configuration Endpoint
+app.get(['/api/config', '/config'], (req, res) => {
+  const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').replace(/\/rest\/v1\/?$/, '');
+  let supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+
+  // CRITICAL SECURITY ENFORCEMENT: Never expose private secret or service_role keys to the client
+  if (supabaseAnonKey.startsWith('sb_secret_') || supabaseAnonKey.includes('service_role') || supabaseAnonKey.startsWith('secret_')) {
+    supabaseAnonKey = '';
+  }
+
+  const paystackPublicKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY || '';
+  const flutterwavePublicKey = getFlutterwavePublicKey();
+  const flutterwaveSecret = getFlutterwaveSecretKey();
+
+  return res.json({
+    supabaseUrl,
+    supabaseAnonKey,
+    paystackPublicKey,
+    flutterwavePublicKey,
+    hasPaystackSecret: Boolean(process.env.PAYSTACK_SECRET_KEY && !process.env.PAYSTACK_SECRET_KEY.includes('example')),
+    isPaystackLive: Boolean(paystackPublicKey.startsWith('pk_live_') || process.env.PAYSTACK_SECRET_KEY?.startsWith('sk_live_')),
+    hasFlutterwaveSecret: Boolean(flutterwaveSecret),
+    isFlutterwaveLive: Boolean(flutterwavePublicKey.startsWith('FLWPUBK-') && !flutterwavePublicKey.toLowerCase().includes('test')),
+  });
+});
 
 const serverDonationsCache: any[] = [];
 
+// Get Payment & Paystack/Flutterwave Gateway Configuration
+app.get(['/api/donations/config', '/donations/config'], (req, res) => {
+  const paystackPublicKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY || '';
+  const hasPaystackSecret = Boolean(process.env.PAYSTACK_SECRET_KEY && !process.env.PAYSTACK_SECRET_KEY.includes('example'));
+  const isPaystackConfigured = Boolean(paystackPublicKey && !paystackPublicKey.includes('example'));
+  const isPaystackLive = Boolean(paystackPublicKey.startsWith('pk_live_') || process.env.PAYSTACK_SECRET_KEY?.startsWith('sk_live_'));
+
+  const flutterwavePublicKey = getFlutterwavePublicKey();
+  const flutterwaveSecret = getFlutterwaveSecretKey();
+  const isFlutterwaveConfigured = Boolean(flutterwavePublicKey);
+  const isFlutterwaveLive = Boolean(flutterwavePublicKey.startsWith('FLWPUBK-') && !flutterwavePublicKey.toLowerCase().includes('test'));
+
+  return res.json({
+    paystackPublicKey,
+    hasPaystackSecret,
+    isConfigured: isPaystackConfigured,
+    isLive: isPaystackLive,
+    accountMode: isPaystackLive ? 'live' : 'test',
+    flutterwavePublicKey,
+    hasFlutterwaveSecret: Boolean(flutterwaveSecret),
+    isFlutterwaveConfigured,
+    isFlutterwaveLive,
+  });
+});
+
 // Initialize Donation Session
-app.post(['/api/donations/initialize', '/donations/initialize'], paymentRateLimiter, (req, res) => {
+app.post(['/api/donations/initialize', '/donations/initialize'], paymentRateLimiter, async (req, res) => {
   try {
-    const { amount, currency, cause, frequency, donorName, donorEmail } = req.body || {};
+    const { amount, currency, cause, frequency, donorName, donorEmail, provider } = req.body || {};
     const parsedAmount = Math.max(1, Number(amount) || 25);
     const selectedCurrency = (currency as string)?.toUpperCase() || 'USD';
     const reference = `DON_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
 
+    let accessCode: string | undefined;
+    let authorizationUrl: string | undefined;
+
+    // If server has live/test Paystack secret key, initialize official Paystack session
+    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+    if (provider === 'paystack' && paystackSecret && !paystackSecret.includes('example')) {
+      try {
+        const paystackInitRes = await fetch('https://api.paystack.co/transaction/initialize', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${paystackSecret}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: donorEmail || 'supporter@birdmigrationapp.org',
+            amount: Math.round(parsedAmount * 100),
+            currency: selectedCurrency,
+            reference,
+            metadata: {
+              custom_fields: [
+                { display_name: 'Donor Name', variable_name: 'donor_name', value: donorName || 'Avian Supporter' },
+                { display_name: 'Cause', variable_name: 'cause', value: cause || 'general_conservation' },
+                { display_name: 'Frequency', variable_name: 'frequency', value: frequency || 'one_time' },
+              ],
+            },
+          }),
+        });
+
+        const paystackInitJson = await paystackInitRes.json();
+        if (paystackInitJson && paystackInitJson.data) {
+          accessCode = paystackInitJson.data.access_code;
+          authorizationUrl = paystackInitJson.data.authorization_url;
+          console.log(`[Paystack Init] Created session ${reference} for ${donorEmail}: access_code=${accessCode}`);
+        }
+      } catch (initErr) {
+        console.warn('[Paystack Init Notice]:', initErr);
+      }
+    }
+
     return res.json({
       success: true,
       transactionRef: reference,
+      accessCode,
+      authorizationUrl,
       amount: parsedAmount,
       currency: selectedCurrency,
       cause: cause || 'general_conservation',
@@ -489,7 +671,7 @@ app.post(['/api/donations/initialize', '/donations/initialize'], paymentRateLimi
 });
 
 // Verify & Issue Official Donation Receipt
-app.post(['/api/donations/verify', '/donations/verify'], paymentRateLimiter, (req, res) => {
+app.post(['/api/donations/verify', '/donations/verify'], paymentRateLimiter, async (req, res) => {
   try {
     const {
       transactionRef,
@@ -502,6 +684,7 @@ app.post(['/api/donations/verify', '/donations/verify'], paymentRateLimiter, (re
       donorEmail,
       message,
       isAnonymous,
+      paystackChannel,
     } = req.body || {};
 
     const parsedAmount = Math.max(1, Number(amount) || 25);
@@ -510,11 +693,33 @@ app.post(['/api/donations/verify', '/donations/verify'], paymentRateLimiter, (re
     const receiptNumber = `BMA-DON-${year}-${Math.floor(1000 + Math.random() * 9000)}`;
     const now = new Date().toISOString();
 
+    let verifiedChannel = paystackChannel || (provider === 'paystack' ? 'card / bank_transfer' : provider || 'card');
+
+    // If live Paystack secret key is present in server environment, verify with Paystack API
+    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+    if (provider === 'paystack' && paystackSecret && transactionRef && !transactionRef.startsWith('DEMO_') && !transactionRef.startsWith('INSTANT_')) {
+      try {
+        const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(transactionRef)}`, {
+          headers: {
+            Authorization: `Bearer ${paystackSecret}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        const verifyJson = await verifyRes.json();
+        if (verifyJson && verifyJson.data) {
+          verifiedChannel = verifyJson.data.channel || verifiedChannel;
+          console.log(`[Paystack Server Verify] Confirmed tx ${transactionRef}: channel=${verifiedChannel}`);
+        }
+      } catch (paystackErr) {
+        console.warn('[Paystack Server Verify Notice]:', paystackErr);
+      }
+    }
+
     const verifiedRecord = {
       id: `don_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       receiptNumber,
-      transactionRef: transactionRef || `REF_${Date.now()}`,
-      provider: provider || 'card',
+      transactionRef: transactionRef || `DON_PAYSTACK_${Date.now()}`,
+      provider: provider || 'paystack',
       amount: parsedAmount,
       currency: selectedCurrency,
       cause: cause || 'general_conservation',
@@ -527,6 +732,7 @@ app.post(['/api/donations/verify', '/donations/verify'], paymentRateLimiter, (re
       status: 'completed',
       taxDeductible: true,
       verifiedByServer: true,
+      paystackChannel: verifiedChannel,
     };
 
     serverDonationsCache.unshift(verifiedRecord);

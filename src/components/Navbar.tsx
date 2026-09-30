@@ -120,18 +120,6 @@ const NavbarComponent: React.FC<NavbarProps> = ({
                   </span>
                 )}
               </Link>
-
-              <Link
-                to="/donate"
-                className={`font-mono-code flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
-                  activeTab === 'donate'
-                    ? 'bg-[#00ffaa] text-[#0b0c0d] shadow-sm shadow-[#00ffaa]/20 font-bold'
-                    : 'text-[#edeeef]/60 hover:text-[#00ffaa] hover:bg-[#00ffaa]/10'
-                }`}
-              >
-                <Heart className={`w-3.5 h-3.5 ${activeTab === 'donate' ? 'fill-[#0b0c0d] text-[#0b0c0d]' : 'text-rose-400'}`} />
-                <span>Donate</span>
-              </Link>
             </nav>
 
             {/* Right Action Bar */}

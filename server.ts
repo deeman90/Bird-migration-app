@@ -1,3 +1,10 @@
+import dotenv from 'dotenv';
+const parsedEnv = dotenv.config().parsed || {};
+for (const [k, v] of Object.entries(parsedEnv)) {
+  if (v && v.trim() !== '' && !v.includes('your_') && !v.includes('example')) {
+    process.env[k] = v.trim();
+  }
+}
 import express from 'express';
 import path from 'path';
 import app from './api/index';

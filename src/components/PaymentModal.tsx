@@ -123,6 +123,24 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const loadFlutterwaveScript = (): Promise<boolean> => {
     return new Promise((resolve) => {
       if ((window as any).FlutterwaveCheckout) return resolve(true);
+
+      try {
+        const origFetch = window.fetch ? window.fetch.bind(window) : undefined;
+        let active = origFetch;
+        Object.defineProperty(window, 'fetch', {
+          get() {
+            return active || origFetch;
+          },
+          set(fn) {
+            if (typeof fn === 'function') active = fn;
+          },
+          configurable: true,
+          enumerable: true,
+        });
+      } catch {
+        // ignore
+      }
+
       const script = document.createElement('script');
       script.src = 'https://checkout.flutterwave.com/v3.js';
       script.async = true;
@@ -214,6 +232,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     let reference = `${provider.slice(0, 3).toUpperCase()}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
     // Optional server checkout init
+    let serverPaystackKey: string | undefined;
+    let serverFlutterwaveKey: string | undefined;
     try {
       const initData = await safeFetchJson('/api/checkout/initialize', {
         method: 'POST',
@@ -224,15 +244,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           provider,
         }),
       });
-      if (initData.success && initData.transactionRef) {
-        reference = initData.transactionRef;
+      if (initData?.success) {
+        if (initData.transactionRef) reference = initData.transactionRef;
+        if (initData.paystackPublicKey) serverPaystackKey = initData.paystackPublicKey;
+        if (initData.flutterwavePublicKey) serverFlutterwaveKey = initData.flutterwavePublicKey;
       }
     } catch (err) {
       console.warn('Server checkout init fallback to local ref:', err);
     }
 
-    const paystackKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
-    const flutterwaveKey = import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY;
+    // Client uses verified keys securely dispatched from the backend server
+    const paystackKey = serverPaystackKey || '';
+    const flutterwaveKey = serverFlutterwaveKey || '';
 
     // Check if live external SDKs can be launched
     if (provider === 'paystack') {

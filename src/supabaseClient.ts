@@ -1,30 +1,54 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // ============================================================================
-// SUPABASE CONFIGURATION
-// Project: Bird migration app (cgqsmdnwzrazyyhkdibn)
+// SUPABASE CLIENT (BACKEND CONFIGURATION PROXY)
+// Credentials are managed securely in backend server environment variables.
+// No private API keys or sensitive secrets are stored in this repository file.
 // ============================================================================
-
-const DEFAULT_SUPABASE_URL = "https://cgqsmdnwzrazyyhkdibn.supabase.co";
-const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_9vdeAtSD1Cbt_NxV-xHtoQ_igQCL2RZ";
 
 const env = (import.meta as unknown as { env?: Record<string, string> }).env || {};
-const SUPABASE_URL = env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+const initialUrl = (env.VITE_SUPABASE_URL || "https://placeholder-project.supabase.co").replace(/\/rest\/v1\/?$/, "");
+const initialKey = env.VITE_SUPABASE_ANON_KEY || "supabase-anon-unconfigured";
 
-let rawKey = env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
-if (!rawKey || rawKey.startsWith("sb_secret_") || rawKey.includes("YOUR_SUPABASE")) {
-  rawKey = DEFAULT_SUPABASE_ANON_KEY;
-}
-
-const SUPABASE_PUBLIC_KEY = rawKey;
-
-// Normalize URL in case user includes /rest/v1
-const cleanUrl = SUPABASE_URL.replace(/\/rest\/v1\/?$/, "");
-
-// Initialize and export the Supabase client instance safely
-export const supabase = createClient(cleanUrl, SUPABASE_PUBLIC_KEY, {
+let clientInstance: SupabaseClient = createClient(initialUrl, initialKey, {
   auth: {
     persistSession: typeof window !== "undefined",
     detectSessionInUrl: false,
   },
 });
+
+export function updateSupabaseConfig(url: string, key: string): void {
+  if (url && key && !key.includes("unconfigured") && !key.includes("placeholder") && !key.includes("example") && !key.includes("your_")) {
+    const cleanUrl = url.replace(/\/rest\/v1\/?$/, "");
+    clientInstance = createClient(cleanUrl, key, {
+      auth: {
+        persistSession: typeof window !== "undefined",
+        detectSessionInUrl: false,
+      },
+    });
+  }
+}
+
+// Automatically fetch public configuration from backend server on startup
+if (typeof window !== "undefined") {
+  fetch("/api/config")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((cfg) => {
+      if (cfg?.supabaseUrl && cfg?.supabaseAnonKey) {
+        updateSupabaseConfig(cfg.supabaseUrl, cfg.supabaseAnonKey);
+      }
+    })
+    .catch(() => {});
+}
+
+// Proxied client ensures immediate and dynamic binding across all services
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const val = (clientInstance as any)[prop];
+    if (typeof val === "function") {
+      return val.bind(clientInstance);
+    }
+    return val;
+  },
+});
+

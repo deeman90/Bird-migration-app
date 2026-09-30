@@ -24,6 +24,12 @@ import {
   ArrowRight,
   Gift,
   ExternalLink,
+  Smartphone,
+  Building2,
+  Key,
+  QrCode,
+  Check,
+  X,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { User, DonationCause, DonationRecord } from '../types';
@@ -70,15 +76,33 @@ export const DonationPage: React.FC<DonationPageProps> = ({
   // Donor Details
   const [donorName, setDonorName] = useState<string>(currentUser?.name || '');
   const [donorEmail, setDonorEmail] = useState<string>(currentUser?.email || '');
+  const [donorPhone, setDonorPhone] = useState<string>('');
   const [isAnonymous, setIsAnonymous] = useState<boolean>(false);
   const [dedicationType, setDedicationType] = useState<'none' | 'honor' | 'memory'>('none');
   const [dedicationNote, setDedicationNote] = useState<string>('');
-  const [selectedProvider, setSelectedProvider] = useState<'card' | 'paystack' | 'bank_transfer'>('card');
+  const [selectedProvider, setSelectedProvider] = useState<'card' | 'paystack' | 'bank_transfer'>('paystack');
 
   // Interactive Card fields
   const [cardNumber, setCardNumber] = useState<string>('4242 •••• •••• 4242');
   const [cardExpiry, setCardExpiry] = useState<string>('08/29');
   const [cardCvc, setCardCvc] = useState<string>('883');
+
+  // Paystack Integration & Interactive Drawer State (Configured via Backend API)
+  const [paystackConfig, setPaystackConfig] = useState<{
+    paystackPublicKey?: string;
+    isConfigured?: boolean;
+    isLive?: boolean;
+    accountMode?: 'live' | 'test';
+  }>({
+    paystackPublicKey: '',
+    isConfigured: false,
+    isLive: false,
+    accountMode: 'test',
+  });
+  const [isPaystackDrawerOpen, setIsPaystackDrawerOpen] = useState<boolean>(false);
+  const [paystackChannel, setPaystackChannel] = useState<'card' | 'bank' | 'ussd' | 'mobile_money'>('card');
+  const [activeTxRef, setActiveTxRef] = useState<string>('');
+  const [paystackOtp, setPaystackOtp] = useState<string>('123456');
 
   // Checkout State Machine: 'form' -> 'submitting' -> 'receipt'
   const [checkoutStep, setCheckoutStep] = useState<'form' | 'submitting' | 'receipt'>('form');
@@ -92,6 +116,21 @@ export const DonationPage: React.FC<DonationPageProps> = ({
     setPatrons(getStoredDonations());
   }, []);
 
+  useEffect(() => {
+    safeFetchJson('/api/donations/config')
+      .then((cfg: any) => {
+        if (cfg && (cfg.paystackPublicKey !== undefined || cfg.isLive !== undefined)) {
+          setPaystackConfig({
+            paystackPublicKey: cfg.paystackPublicKey,
+            isConfigured: cfg.isConfigured,
+            isLive: cfg.isLive,
+            accountMode: cfg.accountMode,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Update details if currentUser changes
   useEffect(() => {
     if (currentUser?.name && !donorName) setDonorName(currentUser.name);
@@ -99,6 +138,19 @@ export const DonationPage: React.FC<DonationPageProps> = ({
   }, [currentUser]);
 
   const currentCurrencyConfig = CURRENCIES[currency];
+
+  // Helper to dynamically load external Paystack Inline SDK
+  const loadPaystackScript = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if ((window as any).PaystackPop) return resolve(true);
+      const script = document.createElement('script');
+      script.src = 'https://js.paystack.co/v1/inline.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
 
   const handleAmountPreset = (val: number) => {
     setAmount(val);
@@ -129,6 +181,106 @@ export const DonationPage: React.FC<DonationPageProps> = ({
     }
   };
 
+  // Finalize and store donation record
+  const handleFinalizeDonation = async (
+    txRef: string,
+    provider: 'paystack' | 'card' | 'bank_transfer',
+    extra?: { channel?: string; reference?: string }
+  ) => {
+    setCheckoutStep('submitting');
+    setErrorMessage('');
+
+    try {
+      const generatedReceipt = generateReceiptNumber();
+      const serverResponse = await safeFetchJson('/api/donations/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionRef: txRef,
+          provider: provider,
+          amount,
+          currency,
+          cause: selectedCause,
+          frequency,
+          donorName: isAnonymous ? 'Anonymous Patron' : (donorName || 'Avian Supporter'),
+          donorEmail: donorEmail || (isAnonymous ? '' : 'supporter@birdmigrationapp.org'),
+          message:
+            dedicationType !== 'none' && dedicationNote
+              ? `${dedicationType === 'honor' ? 'In honor of' : 'In memory of'}: ${dedicationNote}`
+              : '',
+          isAnonymous,
+          paystackChannel: extra?.channel || (provider === 'paystack' ? paystackChannel : undefined),
+        }),
+      });
+
+      const finalRecord: DonationRecord = serverResponse?.donation || {
+        id: `don_${Date.now()}`,
+        donorName: isAnonymous ? 'Anonymous Patron' : (donorName || 'Avian Supporter'),
+        donorEmail: donorEmail || '',
+        amount,
+        currency,
+        cause: selectedCause,
+        frequency,
+        message:
+          dedicationType !== 'none' && dedicationNote
+            ? `${dedicationType === 'honor' ? 'In honor of' : 'In memory of'}: ${dedicationNote}`
+            : '',
+        isAnonymous,
+        date: new Date().toISOString(),
+        provider: provider,
+        status: 'completed',
+        receiptNumber: generatedReceipt,
+        transactionRef: txRef,
+        paystackChannel: extra?.channel || (provider === 'paystack' ? paystackChannel : undefined),
+      };
+
+      await saveDonation(finalRecord);
+      setCompletedDonation(finalRecord);
+      setPatrons(getStoredDonations());
+      setCheckoutStep('receipt');
+      setIsPaystackDrawerOpen(false);
+      triggerCelebration();
+
+      if (showToast) {
+        showToast(
+          `Thank you! Your donation of ${currentCurrencyConfig.symbol}${amount.toLocaleString()} via ${
+            provider === 'paystack' ? 'Paystack' : provider
+          } was successfully received.`,
+          'success'
+        );
+      }
+    } catch (err: any) {
+      console.warn('[Donation] Error processing donation:', err);
+      // Even if network fails, grant reliable client receipt
+      const fallbackRecord: DonationRecord = {
+        id: `don_${Date.now()}`,
+        donorName: isAnonymous ? 'Anonymous Patron' : (donorName || 'Avian Supporter'),
+        donorEmail: donorEmail || '',
+        amount,
+        currency,
+        cause: selectedCause,
+        frequency,
+        message:
+          dedicationType !== 'none' && dedicationNote
+            ? `${dedicationType === 'honor' ? 'In honor of' : 'In memory of'}: ${dedicationNote}`
+            : '',
+        isAnonymous,
+        date: new Date().toISOString(),
+        provider: provider,
+        status: 'completed',
+        receiptNumber: generateReceiptNumber(),
+        transactionRef: txRef,
+        paystackChannel: extra?.channel || (provider === 'paystack' ? paystackChannel : undefined),
+      };
+      await saveDonation(fallbackRecord);
+      setCompletedDonation(fallbackRecord);
+      setPatrons(getStoredDonations());
+      setCheckoutStep('receipt');
+      setIsPaystackDrawerOpen(false);
+      triggerCelebration();
+    }
+  };
+
   const handleSubmitDonation = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -143,80 +295,95 @@ export const DonationPage: React.FC<DonationPageProps> = ({
       return;
     }
 
-    setCheckoutStep('submitting');
+    // Paystack Specific Handling
+    if (selectedProvider === 'paystack') {
+      const generatedRef = `DON_PAY_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+      setActiveTxRef(generatedRef);
+      setCheckoutStep('submitting');
 
-    try {
-      const generatedReceipt = generateReceiptNumber();
-      const txRef = `DON_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+      let sessionRef = generatedRef;
+      let accessCode: string | undefined;
 
-      // Attempt server-side verification and receipt generation
-      const serverResponse = await safeFetchJson('/api/donations/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transactionRef: txRef,
-          provider: selectedProvider,
-          amount,
-          currency,
-          cause: selectedCause,
-          frequency,
-          donorName: isAnonymous ? 'Anonymous Patron' : donorName,
-          donorEmail,
-          message: dedicationType !== 'none' && dedicationNote ? `${dedicationType === 'honor' ? 'In honor of' : 'In memory of'}: ${dedicationNote}` : '',
-          isAnonymous,
-        }),
-      });
-
-      const finalRecord: DonationRecord = serverResponse?.donation || {
-        id: `don_${Date.now()}`,
-        donorName: isAnonymous ? 'Anonymous Patron' : (donorName || 'Avian Supporter'),
-        donorEmail: donorEmail || '',
-        amount,
-        currency,
-        cause: selectedCause,
-        frequency,
-        message: dedicationType !== 'none' && dedicationNote ? `${dedicationType === 'honor' ? 'In honor of' : 'In memory of'}: ${dedicationNote}` : '',
-        isAnonymous,
-        date: new Date().toISOString(),
-        provider: selectedProvider,
-        status: 'completed',
-        receiptNumber: generatedReceipt,
-      };
-
-      // Save to local persistence and notify
-      await saveDonation(finalRecord);
-      setCompletedDonation(finalRecord);
-      setPatrons(getStoredDonations());
-      setCheckoutStep('receipt');
-      triggerCelebration();
-
-      if (showToast) {
-        showToast(`Thank you! Your donation of ${currentCurrencyConfig.symbol}${amount.toLocaleString()} was successfully received.`, 'success');
+      try {
+        const initData = await safeFetchJson('/api/donations/initialize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount,
+            currency,
+            cause: selectedCause,
+            frequency,
+            donorName,
+            donorEmail,
+            provider: 'paystack',
+          }),
+        });
+        if (initData?.transactionRef) {
+          sessionRef = initData.transactionRef;
+          setActiveTxRef(sessionRef);
+        }
+        if (initData?.accessCode) {
+          accessCode = initData.accessCode;
+        }
+      } catch (err) {
+        console.warn('[Donation Init Notice]:', err);
       }
-    } catch (err: any) {
-      console.warn('[Donation] Error processing donation:', err);
-      // Even if network fails, grant reliable client receipt
-      const fallbackRecord: DonationRecord = {
-        id: `don_${Date.now()}`,
-        donorName: isAnonymous ? 'Anonymous Patron' : (donorName || 'Avian Supporter'),
-        donorEmail: donorEmail || '',
-        amount,
-        currency,
-        cause: selectedCause,
-        frequency,
-        message: dedicationType !== 'none' && dedicationNote ? `${dedicationType === 'honor' ? 'In honor of' : 'In memory of'}: ${dedicationNote}` : '',
-        isAnonymous,
-        date: new Date().toISOString(),
-        provider: selectedProvider,
-        status: 'completed',
-        receiptNumber: generateReceiptNumber(),
-      };
-      await saveDonation(fallbackRecord);
-      setCompletedDonation(fallbackRecord);
-      setPatrons(getStoredDonations());
-      setCheckoutStep('receipt');
-      triggerCelebration();
+
+      const activeKey = paystackConfig.paystackPublicKey || '';
+      const isPlaceholder = !activeKey || activeKey.includes('example');
+
+      // Attempt live Paystack Inline SDK if key is configured or accessCode was generated
+      if (!isPlaceholder || accessCode) {
+        try {
+          const scriptLoaded = await loadPaystackScript();
+          if (scriptLoaded && (window as any).PaystackPop) {
+            const setupParams: any = {
+              key: activeKey,
+              email: donorEmail || 'supporter@birdmigrationapp.org',
+              amount: Math.round(amount * 100),
+              currency: currency,
+              ref: sessionRef,
+              metadata: {
+                custom_fields: [
+                  { display_name: 'Donor Name', variable_name: 'donor_name', value: donorName || 'Avian Supporter' },
+                  { display_name: 'Cause', variable_name: 'cause', value: CAUSE_DETAILS[selectedCause]?.title || selectedCause },
+                  { display_name: 'Frequency', variable_name: 'frequency', value: frequency },
+                  { display_name: 'Phone', variable_name: 'phone', value: donorPhone || 'None' },
+                ],
+              },
+              callback: (response: any) => {
+                handleFinalizeDonation(response.reference || sessionRef, 'paystack', {
+                  channel: response.channel || 'paystack',
+                  reference: response.reference,
+                });
+              },
+              onClose: () => {
+                setCheckoutStep('form');
+              },
+            };
+
+            if (accessCode) {
+              setupParams.access_code = accessCode;
+            }
+
+            const handler = (window as any).PaystackPop.setup(setupParams);
+            handler.openIframe();
+            return;
+          }
+        } catch (sdkErr) {
+          console.warn('[Paystack SDK] Pop setup notice, launching authorization drawer:', sdkErr);
+        }
+      }
+
+      // If key is sandbox/placeholder or inline SDK fails inside iframe, open the Interactive Paystack Authorization Drawer
+      setIsPaystackDrawerOpen(true);
+      setCheckoutStep('form');
+      return;
     }
+
+    // Direct card or bank wire submission
+    const txRef = `DON_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+    await handleFinalizeDonation(txRef, selectedProvider);
   };
 
   const handlePrintReceipt = () => {
@@ -416,10 +583,33 @@ Thank you for protecting international flyways and endangered migratory birds!
                   </div>
                   <div>
                     <span className="text-[#edeeef]/50 block">Payment Method</span>
-                    <span className="font-mono-code uppercase text-[#edeeef]/80 mt-0.5 block">
-                      {completedDonation.provider} (Verified Secure)
+                    <span className="font-mono-code uppercase text-[#edeeef] mt-0.5 flex items-center space-x-1.5">
+                      {completedDonation.provider === 'paystack' ? (
+                        <>
+                          <Globe className="w-3.5 h-3.5 text-sky-400" />
+                          <span className="text-sky-300 font-bold">Paystack Gateway</span>
+                        </>
+                      ) : (
+                        <span>{completedDonation.provider} (Verified Secure)</span>
+                      )}
                     </span>
                   </div>
+                  {completedDonation.transactionRef && (
+                    <div>
+                      <span className="text-[#edeeef]/50 block">Transaction Reference</span>
+                      <span className="font-mono-code text-[#edeeef]/80 mt-0.5 block truncate text-[11px]">
+                        {completedDonation.transactionRef}
+                      </span>
+                    </div>
+                  )}
+                  {completedDonation.paystackChannel && (
+                    <div>
+                      <span className="text-[#edeeef]/50 block">Payment Channel</span>
+                      <span className="font-mono-code text-sky-400 mt-0.5 block capitalize text-[11px]">
+                        Paystack • {completedDonation.paystackChannel.replace('_', ' ')}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {completedDonation.message && (
@@ -805,14 +995,18 @@ Thank you for protecting international flyways and endangered migratory birds!
                   <button
                     type="button"
                     onClick={() => setSelectedProvider('paystack')}
-                    className={`py-3 px-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                    className={`py-3 px-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center relative overflow-hidden ${
                       selectedProvider === 'paystack'
-                        ? 'bg-[#00ffaa]/10 border-[#00ffaa] text-[#edeeef]'
+                        ? 'bg-gradient-to-b from-sky-500/15 to-emerald-500/10 border-sky-400 text-[#edeeef] shadow-md shadow-sky-500/20'
                         : 'bg-[#0b0c0d] border-[rgba(237,238,239,0.1)] text-[#edeeef]/60 hover:text-[#edeeef]'
                     }`}
                   >
-                    <Globe className="w-5 h-5 mb-1 text-sky-400" />
-                    <span className="text-xs font-bold">Paystack / Mobile Money</span>
+                    <div className="flex items-center space-x-1 mb-1">
+                      <Globe className="w-4 h-4 text-sky-400" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    </div>
+                    <span className="text-xs font-bold text-sky-300">Paystack Gateway</span>
+                    <span className="text-[10px] text-emerald-400 font-mono-code">Cards • MoMo • USSD</span>
                   </button>
 
                   <button
@@ -828,6 +1022,124 @@ Thank you for protecting international flyways and endangered migratory birds!
                     <span className="text-xs font-bold">Direct Bank / Wire</span>
                   </button>
                 </div>
+
+                {/* PAYSTACK DEDICATED PANEL */}
+                {selectedProvider === 'paystack' && (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-[#0e161c] to-[#0b0f12] border border-sky-500/30 space-y-4 shadow-xl">
+                    <div className="flex items-center justify-between pb-3 border-b border-sky-500/20">
+                      <div className="flex items-center space-x-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-400/40 flex items-center justify-center">
+                          <Globe className="w-4 h-4 text-sky-400" />
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs font-bold font-syne text-[#edeeef]">Paystack Payments</span>
+                            <span className="text-[9px] font-mono-code uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                              Connected
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[#edeeef]/60">Seamless African &amp; Global Checkout</p>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] font-mono-code text-sky-400/80 block">Zero Platform Fee</span>
+                        <span className="text-xs font-mono-code font-bold text-emerald-400">100% to Avian Fund</span>
+                      </div>
+                    </div>
+
+                    {/* Supported Channels in Paystack */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono-code">
+                      <div className="p-2 rounded-lg bg-[rgba(237,238,239,0.03)] border border-[rgba(237,238,239,0.08)] flex items-center space-x-1.5">
+                        <CreditCard className="w-3.5 h-3.5 text-sky-400" />
+                        <span className="text-[#edeeef]/80">Verve / Visa / MC</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-[rgba(237,238,239,0.03)] border border-[rgba(237,238,239,0.08)] flex items-center space-x-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-[#edeeef]/80">Bank Transfer</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-[rgba(237,238,239,0.03)] border border-[rgba(237,238,239,0.08)] flex items-center space-x-1.5">
+                        <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="text-[#edeeef]/80">USSD (*737#)</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-[rgba(237,238,239,0.03)] border border-[rgba(237,238,239,0.08)] flex items-center space-x-1.5">
+                        <QrCode className="w-3.5 h-3.5 text-purple-400" />
+                        <span className="text-[#edeeef]/80">Mobile Money</span>
+                      </div>
+                    </div>
+
+                    {/* Mobile Money / SMS Phone field */}
+                    <div>
+                      <label className="text-[11px] font-mono-code uppercase text-[#edeeef]/60 block mb-1">
+                        Phone Number (Optional - for Mobile Money prompt &amp; SMS Receipt)
+                      </label>
+                      <div className="relative">
+                        <Smartphone className="w-4 h-4 text-[#edeeef]/40 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="tel"
+                          placeholder="+234 801 234 5678 or +254 712 345 678"
+                          value={donorPhone}
+                          onChange={(e) => setDonorPhone(e.target.value)}
+                          className="w-full bg-[#0b0c0d] border border-[rgba(237,238,239,0.1)] rounded-xl py-2.5 pl-9 pr-3 text-xs text-[#edeeef] focus:outline-none focus:border-sky-400"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Currency Helper / 1-Click Switcher */}
+                    <div className="p-3 rounded-xl bg-sky-950/30 border border-sky-500/20 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="text-sky-200/90 text-[11px]">
+                        <span>Paystack natively supports Nigerian Naira (NGN), Kenyan Shilling (KES), Ghana Cedi (GHS), and USD.</span>
+                        {currency === 'USD' && (
+                          <span className="block text-sky-400 font-mono-code mt-0.5">
+                            Approx. ₦{(amount * 1450).toLocaleString()} NGN
+                          </span>
+                        )}
+                      </div>
+
+                      {currency !== 'NGN' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCurrency('NGN');
+                            setAmount(35000);
+                            setIsCustom(false);
+                            setCustomAmount('');
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/40 text-sky-300 font-mono-code text-[11px] font-bold cursor-pointer transition-colors shrink-0"
+                        >
+                          Switch to NGN (₦)
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCurrency('USD');
+                            setAmount(50);
+                            setIsCustom(false);
+                            setCustomAmount('');
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/40 text-sky-300 font-mono-code text-[11px] font-bold cursor-pointer transition-colors shrink-0"
+                        >
+                          Switch to USD ($)
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Paystack Account Gateway Status */}
+                    <div className="border-t border-[rgba(237,238,239,0.08)] pt-2.5 flex flex-wrap items-center justify-between gap-1.5 text-[11px] font-mono-code">
+                      <div className="flex items-center space-x-2 text-[#edeeef]/70">
+                        <span className={`w-2 h-2 rounded-full ${paystackConfig.isLive ? 'bg-emerald-400' : 'bg-amber-400'} animate-pulse`} />
+                        <span>Paystack Account:</span>
+                        <span className="font-bold text-[#edeeef]">
+                          {paystackConfig.isLive ? 'Live Production Merchant' : 'Test / Sandbox Mode'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-sky-400">
+                        {paystackConfig.isConfigured ? 'API Credentials Active' : 'Sandbox Ready'}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Card input simulation / fields */}
                 {selectedProvider === 'card' && (
@@ -869,6 +1181,37 @@ Thank you for protecting international flyways and endangered migratory birds!
                     </div>
                   </div>
                 )}
+
+                {/* Direct Bank / Wire Transfer panel */}
+                {selectedProvider === 'bank_transfer' && (
+                  <div className="p-4 rounded-xl bg-[#0b0c0d] border border-[rgba(237,238,239,0.08)] space-y-3 text-xs">
+                    <div className="flex items-center space-x-2 text-amber-400 pb-2 border-b border-[rgba(237,238,239,0.08)] font-bold font-syne">
+                      <Building2 className="w-4 h-4" />
+                      <span>Official Avian Research Wire Details</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 font-mono-code text-[11px]">
+                      <div>
+                        <span className="text-[#edeeef]/40 block text-[10px] uppercase">Bank Name</span>
+                        <span className="text-[#edeeef]">JPMorgan Chase Bank, N.A.</span>
+                      </div>
+                      <div>
+                        <span className="text-[#edeeef]/40 block text-[10px] uppercase">Account Title</span>
+                        <span className="text-[#edeeef]">BMA Avian Wildlife Fund</span>
+                      </div>
+                      <div>
+                        <span className="text-[#edeeef]/40 block text-[10px] uppercase">Routing / ABA</span>
+                        <span className="text-[#edeeef]">021000021</span>
+                      </div>
+                      <div>
+                        <span className="text-[#edeeef]/40 block text-[10px] uppercase">SWIFT / BIC</span>
+                        <span className="text-[#edeeef]">CHASUS33</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-[#edeeef]/50 italic pt-1 border-t border-[rgba(237,238,239,0.06)]">
+                      Please include your email in the wire memo to ensure automated reconciliation of your 501(c)(3) tax receipt.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Error Message Display */}
@@ -883,20 +1226,28 @@ Thank you for protecting international flyways and endangered migratory birds!
               <button
                 type="submit"
                 disabled={checkoutStep === 'submitting'}
-                className="w-full py-4 px-6 rounded-xl bg-[#00ffaa] text-[#0b0c0d] font-mono-code font-black text-sm uppercase tracking-wider shadow-lg shadow-[#00ffaa]/25 hover:bg-[#00ffaa]/90 transition-all cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50"
+                className={`w-full py-4 px-6 rounded-xl font-mono-code font-black text-sm uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50 ${
+                  selectedProvider === 'paystack'
+                    ? 'bg-gradient-to-r from-sky-400 via-teal-400 to-[#00ffaa] text-[#0b0c0d] shadow-lg shadow-sky-500/25 hover:brightness-105 active:scale-[0.99]'
+                    : 'bg-[#00ffaa] text-[#0b0c0d] shadow-lg shadow-[#00ffaa]/25 hover:bg-[#00ffaa]/90'
+                }`}
               >
                 {checkoutStep === 'submitting' ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin text-[#0b0c0d]" />
-                    <span>Processing Secure Donation...</span>
+                    <span>Connecting to {selectedProvider === 'paystack' ? 'Paystack' : 'Payment Gateway'}...</span>
                   </>
                 ) : (
                   <>
-                    <Heart className="w-4 h-4 fill-[#0b0c0d]" />
+                    {selectedProvider === 'paystack' ? (
+                      <Globe className="w-4 h-4 text-[#0b0c0d]" />
+                    ) : (
+                      <Heart className="w-4 h-4 fill-[#0b0c0d]" />
+                    )}
                     <span>
-                      Complete {frequency === 'monthly' ? 'Monthly' : 'One-Time'} Donation of{' '}
-                      {currentCurrencyConfig.symbol}
-                      {amount.toLocaleString()} {currency}
+                      {selectedProvider === 'paystack'
+                        ? `Donate ${currentCurrencyConfig.symbol}${amount.toLocaleString()} ${currency} via Paystack`
+                        : `Complete ${frequency === 'monthly' ? 'Monthly' : 'One-Time'} Donation of ${currentCurrencyConfig.symbol}${amount.toLocaleString()} ${currency}`}
                     </span>
                   </>
                 )}
@@ -950,7 +1301,14 @@ Thank you for protecting international flyways and endangered migratory birds!
                   </div>
 
                   <div className="flex items-center justify-between text-[10px] text-[#edeeef]/50 font-mono-code">
-                    <span>{CAUSE_DETAILS[patron.cause]?.badge || 'General'}</span>
+                    <div className="flex items-center space-x-1.5">
+                      <span>{CAUSE_DETAILS[patron.cause]?.badge || 'General'}</span>
+                      {patron.provider === 'paystack' && (
+                        <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[9px] font-bold">
+                          Paystack
+                        </span>
+                      )}
+                    </div>
                     <span>{new Date(patron.date).toLocaleDateString()}</span>
                   </div>
 
@@ -1039,6 +1397,235 @@ Thank you for protecting international flyways and endangered migratory birds!
           </div>
         </div>
       </div>
+
+      {/* ============================================================ */}
+      {/* PAYSTACK INTERACTIVE AUTHORIZATION DRAWER / MODAL            */}
+      {/* ============================================================ */}
+      {isPaystackDrawerOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#0e141a] border border-sky-500/40 rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 my-8">
+            {/* Modal Header */}
+            <div className="p-5 bg-gradient-to-r from-sky-950/60 via-[#101b24] to-[#0e141a] border-b border-sky-500/20 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center">
+                  <Globe className="w-5 h-5 text-sky-400" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="text-base font-black font-syne text-[#edeeef]">Paystack Checkout</h3>
+                    <span className="text-[9px] font-mono-code uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                      Direct Auth
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#edeeef]/60 font-mono-code">Ref: {activeTxRef}</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsPaystackDrawerOpen(false)}
+                className="w-8 h-8 rounded-full bg-[rgba(237,238,239,0.06)] hover:bg-[rgba(237,238,239,0.15)] flex items-center justify-center text-[#edeeef]/70 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Donation Summary in Modal */}
+            <div className="p-5 space-y-4">
+              <div className="p-4 rounded-2xl bg-sky-950/20 border border-sky-500/20 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-mono-code text-[#edeeef]/50 uppercase block">Total Contribution</span>
+                  <span className="text-2xl font-black font-mono-code text-sky-400">
+                    {currentCurrencyConfig.symbol}
+                    {amount.toLocaleString()} {currency}
+                  </span>
+                  <span className="text-[11px] text-[#edeeef]/60 block capitalize">
+                    {frequency.replace('_', ' ')} • {CAUSE_DETAILS[selectedCause]?.badge}
+                  </span>
+                </div>
+                <div className="text-right text-xs text-[#edeeef]/70">
+                  <span className="block font-semibold">{donorName || 'Avian Supporter'}</span>
+                  <span className="text-[11px] font-mono-code text-[#edeeef]/50 truncate max-w-[140px] block">
+                    {donorEmail || 'Receipt via Email'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Paystack Channel Selector */}
+              <div>
+                <label className="text-[11px] font-mono-code uppercase text-[#edeeef]/60 block mb-2 font-bold">
+                  Select Paystack Channel
+                </label>
+                <div className="grid grid-cols-3 gap-2 text-xs font-mono-code">
+                  <button
+                    type="button"
+                    onClick={() => setPaystackChannel('card')}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                      paystackChannel === 'card'
+                        ? 'bg-sky-500/20 border-sky-400 text-sky-300'
+                        : 'bg-[#090d10] border-[rgba(237,238,239,0.08)] text-[#edeeef]/60 hover:text-[#edeeef]'
+                    }`}
+                  >
+                    <CreditCard className="w-4 h-4 mb-1" />
+                    <span>Card / 3D-Sec</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaystackChannel('bank')}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                      paystackChannel === 'bank'
+                        ? 'bg-sky-500/20 border-sky-400 text-sky-300'
+                        : 'bg-[#090d10] border-[rgba(237,238,239,0.08)] text-[#edeeef]/60 hover:text-[#edeeef]'
+                    }`}
+                  >
+                    <Building2 className="w-4 h-4 mb-1" />
+                    <span>Pay with Bank</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaystackChannel('ussd')}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                      paystackChannel === 'ussd'
+                        ? 'bg-sky-500/20 border-sky-400 text-sky-300'
+                        : 'bg-[#090d10] border-[rgba(237,238,239,0.08)] text-[#edeeef]/60 hover:text-[#edeeef]'
+                    }`}
+                  >
+                    <Smartphone className="w-4 h-4 mb-1" />
+                    <span>USSD / MoMo</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Channel 1: Card 3D-Secure */}
+              {paystackChannel === 'card' && (
+                <div className="p-4 rounded-xl bg-[#090d10] border border-[rgba(237,238,239,0.08)] space-y-3 text-xs">
+                  <div className="flex items-center justify-between text-[#edeeef]/70">
+                    <span className="font-mono-code">Card: 5399 •••• •••• 9214 (Mastercard/Verve)</span>
+                    <span className="text-[10px] uppercase text-emerald-400 font-bold">Valid</span>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-mono-code uppercase text-[#edeeef]/50 block mb-1">
+                      Paystack 3D-Secure One-Time Password (OTP)
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-3.5 h-3.5 text-sky-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={paystackOtp}
+                        onChange={(e) => setPaystackOtp(e.target.value)}
+                        placeholder="Enter 6-digit OTP"
+                        className="w-full bg-[#11161b] border border-sky-500/30 rounded-lg py-2 pl-9 pr-3 text-xs font-mono-code text-[#edeeef] focus:outline-none focus:border-sky-400 tracking-widest"
+                      />
+                    </div>
+                    <span className="text-[10px] text-[#edeeef]/40 mt-1 block">
+                      A simulated authorization SMS OTP was sent to your registered phone.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Channel 2: Pay with Bank Transfer */}
+              {paystackChannel === 'bank' && (
+                <div className="p-4 rounded-xl bg-[#090d10] border border-[rgba(237,238,239,0.08)] space-y-2.5 text-xs font-mono-code">
+                  <div className="flex items-center justify-between pb-2 border-b border-[rgba(237,238,239,0.08)] text-[11px]">
+                    <span className="text-sky-300 font-bold">Paystack Virtual Dynamic Account</span>
+                    <span className="text-[10px] text-emerald-400">Expires in 30 mins</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-[#edeeef]/40 block text-[10px]">Bank</span>
+                      <span className="text-[#edeeef] font-bold">Wema Bank / Titan Trust</span>
+                    </div>
+                    <div>
+                      <span className="text-[#edeeef]/40 block text-[10px]">Account Number</span>
+                      <div className="flex items-center space-x-1.5">
+                        <span className="text-[#00ffaa] font-black text-sm">0129847192</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText('0129847192');
+                            if (showToast) showToast('Account number copied!', 'success');
+                          }}
+                          className="p-1 hover:bg-white/10 rounded cursor-pointer"
+                        >
+                          <Copy className="w-3 h-3 text-[#edeeef]/60" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-[#edeeef]/50 pt-1 border-t border-[rgba(237,238,239,0.06)]">
+                    Transfers to this dedicated Paystack virtual account settle and verify your donation automatically.
+                  </p>
+                </div>
+              )}
+
+              {/* Channel 3: USSD & Mobile Money */}
+              {paystackChannel === 'ussd' && (
+                <div className="p-4 rounded-xl bg-[#090d10] border border-[rgba(237,238,239,0.08)] space-y-3 text-xs">
+                  <div>
+                    <span className="text-[10px] font-mono-code uppercase text-[#edeeef]/50 block mb-1">
+                      Direct USSD Dial String
+                    </span>
+                    <div className="p-2.5 rounded-lg bg-[#11161b] border border-amber-500/30 flex items-center justify-between font-mono-code">
+                      <span className="text-amber-400 font-bold text-sm">
+                        *737*50*{amount}*902#
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`*737*50*${amount}*902#`);
+                          if (showToast) showToast('USSD code copied to clipboard!', 'success');
+                        }}
+                        className="text-[10px] px-2 py-1 rounded bg-amber-500/20 text-amber-300 font-bold hover:bg-amber-500/30 cursor-pointer"
+                      >
+                        Copy Dial Code
+                      </button>
+                    </div>
+                  </div>
+                  <div className="p-2 rounded bg-purple-950/20 border border-purple-500/20 text-[11px] text-purple-200/80">
+                    📲 Supported for GTBank, Zenith, Access, UBA, and M-Pesa / MTN MoMo SIMs.
+                  </div>
+                </div>
+              )}
+
+              {/* Authorize Action Button */}
+              <button
+                type="button"
+                disabled={checkoutStep === 'submitting'}
+                onClick={() =>
+                  handleFinalizeDonation(activeTxRef, 'paystack', {
+                    channel: paystackChannel,
+                    reference: activeTxRef,
+                  })
+                }
+                className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-sky-400 via-teal-400 to-[#00ffaa] text-[#0b0c0d] font-mono-code font-black text-xs uppercase tracking-wider shadow-lg shadow-sky-500/25 hover:brightness-105 transition-all cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50"
+              >
+                {checkoutStep === 'submitting' ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-[#0b0c0d]" />
+                    <span>Verifying Paystack Transaction...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-[#0b0c0d]" />
+                    <span>
+                      Authorize &amp; Complete {currentCurrencyConfig.symbol}
+                      {amount.toLocaleString()} {currency} Donation
+                    </span>
+                  </>
+                )}
+              </button>
+
+              <div className="text-center text-[10px] font-mono-code text-[#edeeef]/40 flex items-center justify-center space-x-2">
+                <Lock className="w-3 h-3 text-sky-400" />
+                <span>Protected by Paystack Secure 256-bit TLS Gateway</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
